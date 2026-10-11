@@ -891,7 +891,9 @@ fun DashboardScreen(configManager: ConfigManager) {
 // -------------------------------------------------------------
 @Composable
 private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
+    var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
     val pulseScale by pulseAnimation.animateFloat(
         initialValue = 0.8f,
@@ -918,45 +920,24 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
             val w = size.width
             val h = size.height
 
-            // Background Map Land & Water
-            drawRect(color = Color(0xFFE2E8F0)) // Base terrain
+            // Terrain background
+            drawRect(color = Color(0xFFE2E8F0))
 
-            // Park Areas (Greenish slate)
-            drawCircle(
-                color = Color(0xFFD1FAE5),
-                radius = w * 0.35f,
-                center = Offset(w * 0.2f, h * 0.25f)
-            )
-            drawCircle(
-                color = Color(0xFFD1FAE5),
-                radius = w * 0.4f,
-                center = Offset(w * 0.85f, h * 0.7f)
-            )
+            // Green Areas
+            drawCircle(color = Color(0xFFD1FAE5), radius = w * 0.35f, center = Offset(w * 0.2f, h * 0.25f))
+            drawCircle(color = Color(0xFFD1FAE5), radius = w * 0.4f, center = Offset(w * 0.85f, h * 0.7f))
 
-            // Main River / Lake
+            // River / Water
             val riverPath = Path().apply {
                 moveTo(0f, h * 0.45f)
                 cubicTo(w * 0.3f, h * 0.4f, w * 0.6f, h * 0.55f, w, h * 0.5f)
             }
-            drawPath(
-                path = riverPath,
-                color = Color(0xFFBAE6FD),
-                style = Stroke(width = 48f, cap = StrokeCap.Round)
-            )
+            drawPath(path = riverPath, color = Color(0xFFBAE6FD), style = Stroke(width = 48f, cap = StrokeCap.Round))
 
-            // Major Roads
-            val mainRoad1 = Path().apply {
-                moveTo(w * 0.1f, 0f)
-                lineTo(w * 0.1f, h)
-            }
-            val mainRoad2 = Path().apply {
-                moveTo(0f, h * 0.3f)
-                lineTo(w, h * 0.3f)
-            }
-            val mainRoad3 = Path().apply {
-                moveTo(0f, h * 0.7f)
-                lineTo(w, h * 0.7f)
-            }
+            // Roads
+            val mainRoad1 = Path().apply { moveTo(w * 0.1f, 0f); lineTo(w * 0.1f, h) }
+            val mainRoad2 = Path().apply { moveTo(0f, h * 0.3f); lineTo(w, h * 0.3f) }
+            val mainRoad3 = Path().apply { moveTo(0f, h * 0.7f); lineTo(w, h * 0.7f) }
             val routePath = Path().apply {
                 moveTo(w * 0.15f, h * 0.1f)
                 cubicTo(w * 0.7f, h * 0.15f, w * 0.3f, h * 0.6f, w * 0.85f, h * 0.85f)
@@ -967,13 +948,9 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
             drawPath(mainRoad3, color = Color.White, style = Stroke(width = 28f))
 
             // Bus Route Line
-            drawPath(
-                path = routePath,
-                color = secondaryColor,
-                style = Stroke(width = 16f, cap = StrokeCap.Round)
-            )
+            drawPath(path = routePath, color = secondaryColor, style = Stroke(width = 16f, cap = StrokeCap.Round))
 
-            // Bus Stops (Dots)
+            // Bus Stops
             val stops = listOf(
                 Offset(w * 0.18f, h * 0.12f),
                 Offset(w * 0.42f, h * 0.28f),
@@ -985,69 +962,102 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
                 drawCircle(color = Color.White, radius = 7f, center = stop)
             }
 
-            // Animated Bus Pulse Pin
+            // Animated Bus Location
             val busLocation = Offset(w * 0.45f, h * 0.55f)
-            drawCircle(
-                color = primaryColor.copy(alpha = pulseAlpha),
-                radius = 45f * pulseScale,
-                center = busLocation
-            )
+            drawCircle(color = primaryColor.copy(alpha = pulseAlpha), radius = 45f * pulseScale, center = busLocation)
             drawCircle(color = tertiaryColor, radius = 22f, center = busLocation)
             drawCircle(color = primaryColor, radius = 14f, center = busLocation)
         }
 
-        // Top Floating Search Bar (Header)
-        Surface(
+        // Top Collapsible Search Bar Header
+        AnimatedContent(
+            targetState = isSearchExpanded,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(200)) + expandHorizontally() togetherWith
+                        fadeOut(animationSpec = tween(200)) + shrinkHorizontally()
+            },
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .align(Alignment.TopCenter),
-            shape = RoundedCornerShape(16.dp),
-            color = Color.White,
-            shadowElevation = 6.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Buscar",
-                    tint = tertiaryColor,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Box(modifier = Modifier.weight(1f)) {
-                    if (searchQuery.isEmpty()) {
-                        Text(
-                            text = "Buscar rutas, paradas o destinos...",
-                            style = TextStyle(fontSize = 14.sp, color = Color(0xFF94A3B8))
+                .align(Alignment.TopStart)
+                .padding(16.dp),
+            label = "SearchExpandTransition"
+        ) { expanded ->
+            if (!expanded) {
+                // Small Circular Search Box Button
+                Surface(
+                    onClick = { isSearchExpanded = true },
+                    shape = CircleShape,
+                    color = Color.White,
+                    shadowElevation = 6.dp,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar",
+                            tint = tertiaryColor,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
-                        )
-                    )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Default.Tune,
-                    contentDescription = "Filtro",
-                    tint = secondaryColor,
-                    modifier = Modifier
-                        .size(22.dp)
-                        .clickable { }
-                )
+            } else {
+                // Expanded Bordered Search Bar
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color.White,
+                    shadowElevation = 6.dp,
+                    border = BorderStroke(1.5.dp, secondaryColor),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar",
+                            tint = tertiaryColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Buscar rutas, paradas...",
+                                    style = TextStyle(fontSize = 14.sp, color = Color(0xFF94A3B8))
+                                )
+                            }
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color.Transparent,
+                                    unfocusedBorderColor = Color.Transparent,
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent
+                                )
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                isSearchExpanded = false
+                                searchQuery = ""
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -1525,88 +1535,169 @@ private fun ModernAnimatedBottomBar(
     secondaryColor: Color,
     tertiaryColor: Color
 ) {
-    val items = listOf(
-        NavTabItem("Mapa", Icons.Default.Map, Icons.Outlined.Map),
-        NavTabItem("Tarjeta", Icons.Default.CreditCard, Icons.Outlined.CreditCard),
-        NavTabItem("QR", Icons.Default.QrCodeScanner, Icons.Outlined.QrCodeScanner),
-        NavTabItem("Regalo", Icons.Default.CardGiftcard, Icons.Outlined.CardGiftcard),
-        NavTabItem("Perfil", Icons.Default.Person, Icons.Outlined.Person)
-    )
-
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(28.dp),
-        color = Color.White,
-        shadowElevation = 12.dp,
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+            .height(90.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        Row(
+        // Base Bar Container
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+                .height(68.dp),
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            color = Color.White,
+            shadowElevation = 12.dp,
+            border = BorderStroke(1.dp, Color(0xFFF1F5F9))
         ) {
-            items.forEachIndexed { index, item ->
-                val isSelected = selectedTab == index
-
-                val scale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.15f else 1.0f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                    label = "scaleAnimation"
-                )
-
-                val activeBgColor by animateColorAsState(
-                    targetValue = if (isSelected) tertiaryColor else Color.Transparent,
-                    animationSpec = tween(200),
-                    label = "bgColorAnimation"
-                )
-
-                val iconColor by animateColorAsState(
-                    targetValue = if (isSelected) primaryColor else Color(0xFF64748B),
-                    animationSpec = tween(200),
-                    label = "iconColorAnimation"
-                )
-
-                Surface(
-                    onClick = { onTabSelected(index) },
-                    shape = RoundedCornerShape(20.dp),
-                    color = activeBgColor,
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 2.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left 2 items: Mapa (0) & Tarjeta (1)
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                            contentDescription = item.label,
-                            tint = iconColor,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .graphicsLayer {
-                                    scaleX = scale
-                                    scaleY = scale
-                                }
-                        )
-                        if (isSelected) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = item.label,
-                                style = TextStyle(
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            )
-                        }
-                    }
+                    NavTabButton(
+                        item = NavTabItem("Mapa", Icons.Default.Map, Icons.Outlined.Map),
+                        isSelected = selectedTab == 0,
+                        onClick = { onTabSelected(0) },
+                        primaryColor = primaryColor,
+                        tertiaryColor = tertiaryColor
+                    )
+                    NavTabButton(
+                        item = NavTabItem("Tarjeta", Icons.Default.CreditCard, Icons.Outlined.CreditCard),
+                        isSelected = selectedTab == 1,
+                        onClick = { onTabSelected(1) },
+                        primaryColor = primaryColor,
+                        tertiaryColor = tertiaryColor
+                    )
+                }
+
+                // Space in middle for Central Elevated QR Button
+                Spacer(modifier = Modifier.width(68.dp))
+
+                // Right 2 items: Recompensas (3) & Perfil (4)
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NavTabButton(
+                        item = NavTabItem("Regalo", Icons.Default.CardGiftcard, Icons.Outlined.CardGiftcard),
+                        isSelected = selectedTab == 3,
+                        onClick = { onTabSelected(3) },
+                        primaryColor = primaryColor,
+                        tertiaryColor = tertiaryColor
+                    )
+                    NavTabButton(
+                        item = NavTabItem("Perfil", Icons.Default.Person, Icons.Outlined.Person),
+                        isSelected = selectedTab == 4,
+                        onClick = { onTabSelected(4) },
+                        primaryColor = primaryColor,
+                        tertiaryColor = tertiaryColor
+                    )
                 }
             }
         }
+
+        // Central Elevated QR Button (Matching Ref 1 + Ref 2)
+        val isQrSelected = selectedTab == 2
+        val qrScale by animateFloatAsState(
+            targetValue = if (isQrSelected) 1.12f else 1.0f,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+            label = "qrScale"
+        )
+
+        Surface(
+            onClick = { onTabSelected(2) },
+            shape = CircleShape,
+            color = if (isQrSelected) secondaryColor else tertiaryColor,
+            shadowElevation = 10.dp,
+            border = BorderStroke(3.dp, Color.White),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-6).dp)
+                .size(58.dp)
+                .graphicsLayer {
+                    scaleX = qrScale
+                    scaleY = qrScale
+                }
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.QrCodeScanner,
+                    contentDescription = "QR",
+                    tint = primaryColor,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavTabButton(
+    item: NavTabItem,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    primaryColor: Color,
+    tertiaryColor: Color
+) {
+    val offsetY by animateDpAsState(
+        targetValue = if (isSelected) (-6).dp else 0.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "offsetY"
+    )
+
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.15f else 1.0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
+    )
+
+    val iconColor by animateColorAsState(
+        targetValue = if (isSelected) tertiaryColor else Color(0xFF64748B),
+        animationSpec = tween(200),
+        label = "iconColor"
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp)
+    ) {
+        Icon(
+            imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+            contentDescription = item.label,
+            tint = iconColor,
+            modifier = Modifier
+                .offset(y = offsetY)
+                .size(24.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = item.label,
+            style = TextStyle(
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) tertiaryColor else Color(0xFF64748B)
+            )
+        )
     }
 }
 
