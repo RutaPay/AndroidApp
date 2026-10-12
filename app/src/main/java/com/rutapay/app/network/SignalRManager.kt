@@ -1,4 +1,4 @@
-package com.rutapay.devapp.network
+package com.rutapay.app.network
 
 import android.util.Log
 import com.microsoft.signalr.HubConnection

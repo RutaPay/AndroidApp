@@ -1,4 +1,4 @@
-package com.rutapay.devapp.network
+package com.rutapay.app.network
 
 import io.ktor.client.*
 import io.ktor.client.call.*

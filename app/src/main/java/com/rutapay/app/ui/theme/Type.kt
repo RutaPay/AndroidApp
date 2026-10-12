@@ -1,10 +1,10 @@
-package com.rutapay.devapp.ui.theme
+package com.rutapay.app.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import com.rutapay.devapp.R
+import com.rutapay.app.R
 
 // Definimos la familia de fuente Lexend
 val Lexend = FontFamily(

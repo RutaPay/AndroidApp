@@ -1,6 +1,6 @@
-package com.rutapay.devapp.ui
+package com.rutapay.app.ui
 
-import com.rutapay.devapp.R
+import com.rutapay.app.R
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.*
@@ -38,15 +38,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import com.rutapay.devapp.ui.theme.Lexend
+import com.rutapay.app.ui.theme.Lexend
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
-import com.rutapay.devapp.data.ConfigManager
-import com.rutapay.devapp.ui.theme.*
-import com.rutapay.devapp.util.QrUtils
+import com.rutapay.app.data.ConfigManager
+import com.rutapay.app.ui.theme.*
+import com.rutapay.app.util.QrUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

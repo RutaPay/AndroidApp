@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.rutapay.devapp"
+    namespace = "com.rutapay.app"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.rutapay.devapp"
+        applicationId = "com.rutapay.app"
         minSdk = 29
         targetSdk = 37
         versionCode = 1

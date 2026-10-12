@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RutaPay Dev App"
+rootProject.name = "RutaPay"
 include(":app")

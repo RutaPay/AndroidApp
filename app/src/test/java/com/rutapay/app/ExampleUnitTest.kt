@@ -1,4 +1,4 @@
-package com.rutapay.devapp
+package com.rutapay.app
 
 import org.junit.Test
 

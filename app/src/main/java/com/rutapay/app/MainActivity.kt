@@ -1,4 +1,4 @@
-package com.rutapay.devapp
+package com.rutapay.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,9 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.rutapay.devapp.data.ConfigManager
-import com.rutapay.devapp.ui.*
-import com.rutapay.devapp.ui.theme.RutaPayDevAppTheme
+import com.rutapay.app.data.ConfigManager
+import com.rutapay.app.ui.*
+import com.rutapay.app.ui.theme.RutaPayTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         val configManager = ConfigManager(this)
         
         setContent {
-            RutaPayDevAppTheme {
+            RutaPayTheme {
                 val navController = rememberNavController()
                 val isLoggedIn by configManager.isLoggedIn.collectAsState(initial = false)
 

@@ -1,4 +1,4 @@
-package com.rutapay.devapp.util
+package com.rutapay.app.util
 
 import android.graphics.Bitmap
 import android.graphics.Color

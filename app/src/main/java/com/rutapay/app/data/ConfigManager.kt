@@ -1,4 +1,4 @@
-package com.rutapay.devapp.data
+package com.rutapay.app.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey

@@ -1,4 +1,4 @@
-package com.rutapay.devapp.ui.theme
+package com.rutapay.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
