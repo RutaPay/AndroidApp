@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -37,15 +38,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import com.rutapay.devapp.ui.theme.Lexend
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.rutapay.devapp.data.ConfigManager
-import com.rutapay.devapp.network.KtorClient
-import com.rutapay.devapp.network.LoginRequest
-import com.rutapay.devapp.network.SignalRManager
+import com.rutapay.devapp.ui.theme.*
 import com.rutapay.devapp.util.QrUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -54,132 +54,17 @@ import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
-fun ModeSelectionScreen(onNavigateToTerminal: () -> Unit, onNavigateToLogin: () -> Unit, onNavigateToSettings: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("RutaPay Dev App", style = MaterialTheme.typography.headlineLarge)
-        Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onNavigateToTerminal, modifier = Modifier.fillMaxWidth()) {
-            Text("Modo Terminal")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onNavigateToLogin, modifier = Modifier.fillMaxWidth()) {
-            Text("Modo Cliente")
-        }
-        Spacer(modifier = Modifier.height(32.dp))
-        IconButton(onClick = onNavigateToSettings) {
-            Icon(Icons.Default.Settings, contentDescription = "Settings")
-        }
-    }
-}
-
-@Composable
-fun SettingsScreen(configManager: ConfigManager, onBack: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val initialApi by configManager.apiUrl.collectAsState(initial = "")
-    val initialSignalR by configManager.signalrUrl.collectAsState(initial = "")
-    
-    var api by remember(initialApi) { mutableStateOf(initialApi) }
-    var signalr by remember(initialSignalR) { mutableStateOf(initialSignalR) }
-
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
-        Text("Configuración", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(
-            value = api,
-            onValueChange = { api = it },
-            label = { Text("API URL") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(
-            value = signalr,
-            onValueChange = { signalr = it },
-            label = { Text("SignalR Hub URL") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = {
-            scope.launch {
-                configManager.saveConfig(api, signalr)
-                onBack()
-            }
-        }, modifier = Modifier.fillMaxWidth()) {
-            Text("Guardar y Volver")
-        }
-    }
-}
-
-@Composable
-fun TerminalScreen(configManager: ConfigManager) {
-    val signalrUrl by configManager.signalrUrl.collectAsState(initial = "")
-    val scope = rememberCoroutineScope()
-    var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var statusMessage by remember { mutableStateOf("Esperando pago...") }
-
-    LaunchedEffect(Unit) {
-        qrBitmap = withContext(Dispatchers.Default) {
-            QrUtils.generateQrCode("PAYMENT_ID_12345")
-        }
-    }
-
-    LaunchedEffect(signalrUrl) {
-        if (signalrUrl.isNotEmpty()) {
-            scope.launch(Dispatchers.IO) {
-                val manager = SignalRManager(signalrUrl)
-                manager.start()
-                manager.paymentConfirmations.collect { message ->
-                    statusMessage = "Pago Confirmado: $message"
-                }
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("Modo Terminal", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        qrBitmap?.let {
-            Image(
-                bitmap = it.asImageBitmap(),
-                contentDescription = "QR Code",
-                modifier = Modifier.size(256.dp),
-                contentScale = ContentScale.Fit
-            )
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(statusMessage, style = MaterialTheme.typography.bodyLarge)
-    }
-}
-
-@Composable
 fun LoginScreen(
     configManager: ConfigManager,
     onLoginSuccess: () -> Unit,
     onNavigateToRegister: () -> Unit = {}
 ) {
-    val apiUrl by configManager.apiUrl.collectAsState(initial = "")
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    val darkBlue = Color(0xFF082B48)
-    val buttonBlue = Color(0xFF3898EC)
-    val lightBorder = Color(0xFFCBD5E1)
-    val darkText = Color(0xFF0F172A)
+    val lightBorder = Color(0xFFC3C3C3)
 
     Box(
         modifier = Modifier
@@ -205,11 +90,12 @@ fun LoginScreen(
             ) {
                 // Título
                 Text(
-                    text = "Inicia sesión para usar\nRutaPay",
+                    text = "Inicia sesión para usar RutaPay",
                     style = TextStyle(
+                        fontFamily = Lexend,
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
-                        color = darkBlue,
+                        color = TextDark,
                         lineHeight = 32.sp
                     )
                 )
@@ -220,9 +106,10 @@ fun LoginScreen(
                 Text(
                     text = "Accede para usar nuestra plataforma de pagos para el transporte público.",
                     style = TextStyle(
+                        fontFamily = Lexend,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Normal,
-                        color = darkBlue,
+                        color = TextDark,
                         lineHeight = 20.sp
                     )
                 )
@@ -239,7 +126,7 @@ fun LoginScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = buttonBlue,
+                        focusedBorderColor = RutaPayPrimary,
                         unfocusedBorderColor = lightBorder,
                         focusedContainerColor = Color.White,
                         unfocusedContainerColor = Color.White
@@ -259,7 +146,7 @@ fun LoginScreen(
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = buttonBlue,
+                        focusedBorderColor = RutaPayPrimary,
                         unfocusedBorderColor = lightBorder,
                         focusedContainerColor = Color.White,
                         unfocusedContainerColor = Color.White
@@ -269,20 +156,21 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Link Olvidaste tu contraseña
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text(
                         text = "¿Olvidaste tu contraseña? ",
-                        style = TextStyle(fontSize = 13.sp, color = darkText, fontWeight = FontWeight.Normal)
+                        style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = TextDark, fontWeight = FontWeight.Normal)
                     )
                     Text(
                         text = "Restablecer contraseña",
                         style = TextStyle(
-                            fontSize = 13.sp,
-                            color = buttonBlue,
-                            fontWeight = FontWeight.SemiBold
+                            fontFamily = Lexend,
+                            fontSize = 14.sp,
+                            color = RutaPayPrimary,
+                            fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.clickable {
                             // Acción para restablecer contraseña
@@ -297,7 +185,8 @@ fun LoginScreen(
                     onClick = {
                         scope.launch {
                             isLoading = true
-                            delay(300) // Breve indicador de carga visual
+                            delay(300.milliseconds) // Breve indicador de carga visual
+                            configManager.setLoggedIn(true)
                             isLoading = false
                             onLoginSuccess() // Salta directamente al Dashboard
                         }
@@ -308,7 +197,7 @@ fun LoginScreen(
                     enabled = !isLoading,
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = buttonBlue,
+                        containerColor = RutaPayPrimary,
                         contentColor = Color.White
                     )
                 ) {
@@ -322,6 +211,7 @@ fun LoginScreen(
                         Text(
                             text = "Iniciar Sesión",
                             style = TextStyle(
+                                fontFamily = Lexend,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -332,19 +222,20 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Link No tienes una cuenta
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text(
                         text = "¿No tienes una cuenta? ",
-                        style = TextStyle(fontSize = 13.sp, color = darkText, fontWeight = FontWeight.Normal)
+                        style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = TextDark, fontWeight = FontWeight.Normal)
                     )
                     Text(
                         text = "Regístrate aquí",
                         style = TextStyle(
-                            fontSize = 13.sp,
-                            color = buttonBlue,
+                            fontFamily = Lexend,
+                            fontSize = 14.sp,
+                            color = RutaPayPrimary,
                             fontWeight = FontWeight.SemiBold
                         ),
                         modifier = Modifier.clickable {
@@ -423,6 +314,7 @@ fun RegisterScreen(
                 Text(
                     text = "Empieza a usar RutaPay",
                     style = TextStyle(
+                        fontFamily = Lexend,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = darkBlue
@@ -435,6 +327,7 @@ fun RegisterScreen(
                 Text(
                     text = "Regístrate para comenzar a usar nuestra plataforma de pagos.",
                     style = TextStyle(
+                        fontFamily = Lexend,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Normal,
                         color = darkBlue,
@@ -560,6 +453,7 @@ fun RegisterScreen(
                 Text(
                     text = "La contraseña debe contener:",
                     style = TextStyle(
+                        fontFamily = Lexend,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = darkBlue
@@ -615,11 +509,12 @@ fun RegisterScreen(
                     )
                     Text(
                         text = "Acepto los ",
-                        style = TextStyle(fontSize = 12.sp, color = darkText)
+                        style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = darkText)
                     )
                     Text(
                         text = "Términos y Condiciones",
                         style = TextStyle(
+                            fontFamily = Lexend,
                             fontSize = 12.sp,
                             color = buttonBlue,
                             fontWeight = FontWeight.SemiBold
@@ -638,6 +533,7 @@ fun RegisterScreen(
                         scope.launch {
                             isLoading = true
                             delay(1000)
+                            configManager.setLoggedIn(true)
                             isLoading = false
                             onRegisterSuccess()
                         }
@@ -663,6 +559,7 @@ fun RegisterScreen(
                         Text(
                             text = "Registrarse",
                             style = TextStyle(
+                                fontFamily = Lexend,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -680,11 +577,12 @@ fun RegisterScreen(
                 ) {
                     Text(
                         text = "¿Ya tienes una cuenta? ",
-                        style = TextStyle(fontSize = 13.sp, color = darkText)
+                        style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, color = darkText)
                     )
                     Text(
                         text = "Inicia sesión aquí",
                         style = TextStyle(
+                            fontFamily = Lexend,
                             fontSize = 13.sp,
                             color = buttonBlue,
                             fontWeight = FontWeight.SemiBold
@@ -717,6 +615,7 @@ private fun PasswordRequirementItem(text: String, fulfilled: Boolean) {
         Text(
             text = text,
             style = TextStyle(
+                fontFamily = Lexend,
                 fontSize = 12.sp,
                 color = if (fulfilled) Color(0xFF15803D) else Color(0xFF475569),
                 fontWeight = if (fulfilled) FontWeight.Medium else FontWeight.Normal
@@ -841,7 +740,10 @@ fun SplashScreen(onTimeOut: () -> Unit) {
 // DASHBOARD PRINCIPAL
 // =============================================================
 @Composable
-fun DashboardScreen(configManager: ConfigManager) {
+fun DashboardScreen(
+    configManager: ConfigManager,
+    onLogout: () -> Unit = {}
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     val primaryColor = Color(0xFF78C0E0)   // #78C0E0 Primario
@@ -879,7 +781,7 @@ fun DashboardScreen(configManager: ConfigManager) {
                     1 -> CardViewSection(primaryColor, secondaryColor, tertiaryColor)
                     2 -> QrViewSection(primaryColor, secondaryColor, tertiaryColor)
                     3 -> RewardsViewSection(primaryColor, secondaryColor, tertiaryColor)
-                    4 -> ProfileViewSection(primaryColor, secondaryColor, tertiaryColor)
+                    4 -> ProfileViewSection(primaryColor, secondaryColor, tertiaryColor, configManager, onLogout)
                 }
             }
         }
@@ -1026,7 +928,7 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
                             if (searchQuery.isEmpty()) {
                                 Text(
                                     text = "Buscar rutas, paradas...",
-                                    style = TextStyle(fontSize = 14.sp, color = Color(0xFF94A3B8))
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = Color(0xFF94A3B8))
                                 )
                             }
                             OutlinedTextField(
@@ -1097,11 +999,11 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
                         Column {
                             Text(
                                 text = "Ruta 4B • Centro - Universidad",
-                                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+                                style = TextStyle(fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
                             )
                             Text(
                                 text = "Llegando a parada: Terminal Central",
-                                style = TextStyle(fontSize = 12.sp, color = Color(0xFF64748B))
+                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
                             )
                         }
                     }
@@ -1111,7 +1013,7 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
                     ) {
                         Text(
                             text = "3 min",
-                            style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D)),
+                            style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D)),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
@@ -1124,7 +1026,7 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
                 ) {
                     Text(
                         text = "Tarifa: $12.00 MXN",
-                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = tertiaryColor)
+                        style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = tertiaryColor)
                     )
                     Button(
                         onClick = { },
@@ -1152,11 +1054,11 @@ private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiary
     ) {
         Text(
             text = "Mi Tarjeta RutaPay",
-            style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+            style = TextStyle(fontFamily = Lexend, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
         )
         Text(
             text = "Gestiona tu saldo y pases de transporte",
-            style = TextStyle(fontSize = 14.sp, color = Color(0xFF64748B))
+            style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = Color(0xFF64748B))
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -1190,7 +1092,7 @@ private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiary
                     ) {
                         Text(
                             text = "RutaPay Pass",
-                            style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         )
                         Image(
                             painter = painterResource(id = R.drawable.logo_rutapay),
@@ -1203,11 +1105,11 @@ private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiary
                     Column {
                         Text(
                             text = "Saldo Disponible",
-                            style = TextStyle(fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
                         )
                         Text(
                             text = "$250.50 MXN",
-                            style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            style = TextStyle(fontFamily = Lexend, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                         )
                     }
 
@@ -1217,11 +1119,11 @@ private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiary
                     ) {
                         Text(
                             text = "•••• •••• •••• 4829",
-                            style = TextStyle(fontSize = 14.sp, color = Color.White.copy(alpha = 0.9f))
+                            style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = Color.White.copy(alpha = 0.9f))
                         )
                         Text(
                             text = "EXP 08/28",
-                            style = TextStyle(fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
                         )
                     }
                 }
@@ -1261,7 +1163,7 @@ private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiary
 
         Text(
             text = "Últimos Movimientos",
-            style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+            style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -1320,12 +1222,12 @@ private fun QrViewSection(primaryColor: Color, secondaryColor: Color, tertiaryCo
     ) {
         Text(
             text = "Escáner y Pago QR",
-            style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+            style = TextStyle(fontFamily = Lexend, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "Acerca este código a la terminal del autobús",
-            style = TextStyle(fontSize = 14.sp, color = Color(0xFF64748B))
+            style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = Color(0xFF64748B))
         )
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -1381,11 +1283,11 @@ private fun RewardsViewSection(primaryColor: Color, secondaryColor: Color, terti
     ) {
         Text(
             text = "Recompensas RutaPay",
-            style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+            style = TextStyle(fontFamily = Lexend, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
         )
         Text(
             text = "Acumula puntos en cada viaje y canjea beneficios",
-            style = TextStyle(fontSize = 14.sp, color = Color(0xFF64748B))
+            style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = Color(0xFF64748B))
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -1418,7 +1320,7 @@ private fun RewardsViewSection(primaryColor: Color, secondaryColor: Color, terti
 
         Text(
             text = "Beneficios Disponibles",
-            style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+            style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -1461,7 +1363,14 @@ private fun RewardsViewSection(primaryColor: Color, secondaryColor: Color, terti
 // 5. PROFILE VIEW SECTION (PERFIL)
 // -------------------------------------------------------------
 @Composable
-private fun ProfileViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
+private fun ProfileViewSection(
+    primaryColor: Color,
+    secondaryColor: Color,
+    tertiaryColor: Color,
+    configManager: ConfigManager,
+    onLogout: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1519,6 +1428,32 @@ private fun ProfileViewSection(primaryColor: Color, secondaryColor: Color, terti
                     Text(option, fontWeight = FontWeight.Medium, color = tertiaryColor, modifier = Modifier.weight(1f))
                     Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8))
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Cerrar Sesión
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 5.dp)
+                .clickable {
+                    scope.launch {
+                        configManager.setLoggedIn(false)
+                        onLogout()
+                    }
+                },
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFEE2E2))
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Cerrar Sesión", tint = Color(0xFFDC2626))
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Cerrar Sesión", fontWeight = FontWeight.Bold, color = Color(0xFFDC2626), modifier = Modifier.weight(1f))
             }
         }
     }
@@ -1693,6 +1628,7 @@ private fun NavTabButton(
         Text(
             text = item.label,
             style = TextStyle(
+                fontFamily = Lexend,
                 fontSize = 11.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 color = if (isSelected) tertiaryColor else Color(0xFF64748B)

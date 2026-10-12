@@ -7,7 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,6 +26,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             RutaPayDevAppTheme {
                 val navController = rememberNavController()
+                val isLoggedIn by configManager.isLoggedIn.collectAsState(initial = false)
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
                         navController = navController,
@@ -33,24 +36,11 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable("splash") {
                             SplashScreen(onTimeOut = {
-                                navController.navigate("mode_selection") {
-                                    // Esto evita que el usuario regrese al Splash al darle atrás
+                                val destination = if (isLoggedIn) "dashboard" else "login"
+                                navController.navigate(destination) {
                                     popUpTo("splash") { inclusive = true }
                                 }
                             })
-                        }
-                        composable("mode_selection") {
-                            ModeSelectionScreen(
-                                onNavigateToTerminal = { navController.navigate("terminal") },
-                                onNavigateToLogin = { navController.navigate("login") },
-                                onNavigateToSettings = { navController.navigate("settings") }
-                            )
-                        }
-                        composable("settings") {
-                            SettingsScreen(configManager, onBack = { navController.popBackStack() })
-                        }
-                        composable("terminal") {
-                            TerminalScreen(configManager)
                         }
                         composable("login") {
                             LoginScreen(
@@ -79,7 +69,14 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("dashboard") {
-                            DashboardScreen(configManager)
+                            DashboardScreen(
+                                configManager = configManager,
+                                onLogout = {
+                                    navController.navigate("login") {
+                                        popUpTo("dashboard") { inclusive = true }
+                                    }
+                                }
+                            )
                         }
                         composable("client") {
                             ClientScreen(configManager)

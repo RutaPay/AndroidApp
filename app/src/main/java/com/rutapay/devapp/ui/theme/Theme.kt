@@ -1,6 +1,5 @@
 package com.rutapay.devapp.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -11,12 +10,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.rutapay.devapp.ui.theme.RutaPayPrimary
 
 private val DarkColorScheme = darkColorScheme(
     primary = RutaPayPrimary,
     secondary = RutaPaySecondary,
-    tertiary = RutaPayAccent,
+    tertiary = RutaPayDark,
 
     secondaryContainer = RutaPaySecondary,
     onSecondaryContainer = Color.Black
@@ -25,7 +23,7 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = RutaPayPrimary,
     secondary = RutaPaySecondary,
-    tertiary = RutaPayAccent,
+    tertiary = RutaPayDark,
 
     // Colores Monocromáticos
     background = Color(0xFFFFFFFF), // Blanco puro
