@@ -10,6 +10,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -1046,153 +1049,858 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
 // -------------------------------------------------------------
 @Composable
 private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp)
-    ) {
-        Text(
-            text = "Mi Tarjeta RutaPay",
-            style = TextStyle(fontFamily = Lexend, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
-        )
-        Text(
-            text = "Gestiona tu saldo y pases de transporte",
-            style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = Color(0xFF64748B))
-        )
+    var isCardActive by remember { mutableStateOf(true) }
+    var currentBalance by remember { mutableDoubleStateOf(250.50) }
+    var activeSector by remember { mutableStateOf("Estudiante") }
+    var showRechargeDialog by remember { mutableStateOf(false) }
 
-        Spacer(modifier = Modifier.height(20.dp))
+    // Dialog State
+    var selectedPresetAmount by remember { mutableIntStateOf(100) }
+    var customAmountText by remember { mutableStateOf("100") }
+    var selectedPaymentMethod by remember { mutableStateOf("Tarjeta Bancaria") } // Tarjeta Bancaria, Transferencia SPEI, OXXO Pay
+    var cardNumber by remember { mutableStateOf("4152 3134 5678 9010") }
+    var expiryDate by remember { mutableStateOf("12/28") }
+    var cvvCode by remember { mutableStateOf("123") }
 
-        // Digital Credit/Transport Card Preview
-        Surface(
+    var successMessage by remember { mutableStateOf<String?>(null) }
+    var recentActivity by remember {
+        mutableStateOf(
+            listOf(
+                Triple("Ruta 4B - Centro", "- $12.00 MXN", "Hoy, 08:30 AM"),
+                Triple("Recarga OXXO", "+ $100.00 MXN", "Ayer, 06:15 PM"),
+                Triple("Ruta 12 - Universidad", "- $12.00 MXN", "Ayer, 01:20 PM")
+            )
+        )
+    }
+
+    // Auto dismiss success toast after 3s
+    LaunchedEffect(successMessage) {
+        if (successMessage != null) {
+            delay(3000)
+            successMessage = null
+        }
+    }
+
+    // Smooth blur and backdrop overlay animation
+    val blurRadius by animateDpAsState(
+        targetValue = if (showRechargeDialog) 16.dp else 0.dp,
+        animationSpec = tween(durationMillis = 300),
+        label = "blurAnimation"
+    )
+    val backdropAlpha by animateFloatAsState(
+        targetValue = if (showRechargeDialog) 0.5f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "backdropAlpha"
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Main Screen Content (Blurred when dialog is active)
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            shape = RoundedCornerShape(20.dp),
-            shadowElevation = 10.dp
+                .fillMaxSize()
+                .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(tertiaryColor, secondaryColor, primaryColor)
-                        )
-                    )
-                    .padding(22.dp)
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
+                Column {
+                    Text(
+                        text = "Mi Tarjeta Digital",
+                        style = TextStyle(fontFamily = Lexend, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+                    )
+                    Text(
+                        text = "Gestiona tu saldo, consulta tus movimientos y protege tu tarjeta",
+                        style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, color = Color(0xFF64748B))
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Digital Credit/Transport Card Preview
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(210.dp),
+                shape = RoundedCornerShape(20.dp),
+                shadowElevation = 10.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            if (isCardActive) {
+                                Brush.linearGradient(
+                                    colors = listOf(tertiaryColor, secondaryColor, primaryColor)
+                                )
+                            } else {
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF334155), Color(0xFF475569), Color(0xFF64748B))
+                                )
+                            }
+                        )
+                        .padding(22.dp)
                 ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Top row of Card
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "RUTAPAY CELAYA",
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                )
+                                Text(
+                                    text = "Transporte Urbano",
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
+                                )
+                            }
+
+                            // Active Account Type Sector Badge
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color.Black.copy(alpha = 0.3f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = activeSector,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                )
+                            }
+                        }
+
+                        // Middle row: NFC / Digital ID & Card Number
+                        Column {
+                            Text(
+                                text = "IDENTIFICADOR NFC / DIGITAL",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), letterSpacing = 1.sp)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "RPAY 0000 0000",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, letterSpacing = 2.sp)
+                            )
+                        }
+
+                        // Bottom row: Titular & Estado (NO EXPIRATION)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Column {
+                                Text(
+                                    text = "TITULAR",
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 9.sp, color = Color.White.copy(alpha = 0.7f))
+                                )
+                                Text(
+                                    text = "Usuario RutaPay",
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                )
+                            }
+
+                            // Estado Badge
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "ESTADO",
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 9.sp, color = Color.White.copy(alpha = 0.7f))
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(
+                                                color = if (isCardActive) Color(0xFF22C55E) else Color(0xFFEF4444),
+                                                shape = CircleShape
+                                            )
+                                    )
+                                    Text(
+                                        text = if (isCardActive) "Activa" else "Desactivada",
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isCardActive) Color(0xFF4ADE80) else Color(0xFFFCA5A5)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Balance & Fare Info Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "RutaPay Pass",
-                            style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        )
-                        Image(
-                            painter = painterResource(id = R.drawable.logo_rutapay),
-                            contentDescription = "Logo",
-                            modifier = Modifier.width(90.dp).height(24.dp),
-                            contentScale = ContentScale.Fit
-                        )
+                        Column {
+                            Text(
+                                text = "SALDO DISPONIBLE",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            )
+                            Text(
+                                text = "$${String.format(java.util.Locale.US, "%.2f", currentBalance)} MXN",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = tertiaryColor)
+                            )
+                        }
                     }
 
-                    Column {
-                        Text(
-                            text = "Saldo Disponible",
-                            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                        )
-                        Text(
-                            text = "$250.50 MXN",
-                            style = TextStyle(fontFamily = Lexend, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
 
+                    Text(
+                        text = "Tarifa por viaje: $6.50 MXN (Preferencial - Estudiante)",
+                        style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Action Buttons: Recargar vs Activar/Desactivar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Recargar Button
+                Button(
+                    onClick = { showRechargeDialog = true },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = secondaryColor)
+                ) {
+                    Icon(Icons.Default.AddCircleOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Recargar", fontWeight = FontWeight.Bold, fontFamily = Lexend)
+                }
+
+                // Activar / Desactivar Button
+                Button(
+                    onClick = { isCardActive = !isCardActive },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isCardActive) Color(0xFFDC2626) else Color(0xFF16A34A)
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (isCardActive) Icons.Default.Block else Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isCardActive) "Desactivar" else "Activar",
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = Lexend,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Historial de Transacciones
+            Text(
+                text = "Historial de Transacciones",
+                style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            recentActivity.forEach { (title, amount, date) ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Column {
+                            Text(title, fontWeight = FontWeight.SemiBold, color = tertiaryColor, fontFamily = Lexend)
+                            Text(date, fontSize = 12.sp, color = Color(0xFF94A3B8), fontFamily = Lexend)
+                        }
                         Text(
-                            text = "•••• •••• •••• 4829",
-                            style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, color = Color.White.copy(alpha = 0.9f))
-                        )
-                        Text(
-                            text = "EXP 08/28",
-                            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                            amount,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = Lexend,
+                            color = if (amount.startsWith("+")) Color(0xFF16A34A) else tertiaryColor
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Action Buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = secondaryColor)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Recargar", fontWeight = FontWeight.Bold)
-            }
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, secondaryColor)
-            ) {
-                Icon(Icons.Default.History, contentDescription = null, tint = secondaryColor, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Historial", color = secondaryColor, fontWeight = FontWeight.Bold)
-            }
+        // Animated Scrim Overlay for Blur / Dialog backdrop
+        if (backdropAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = backdropAlpha))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        showRechargeDialog = false
+                    }
+            )
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        // RECHARGE POP-OUT DIALOG WITH SMOOTH ANIMATION
+        AnimatedVisibility(
+            visible = showRechargeDialog,
+            modifier = Modifier.align(Alignment.Center),
+            enter = fadeIn(animationSpec = tween(250)) +
+                    scaleIn(initialScale = 0.92f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                    slideInVertically(initialOffsetY = { it / 6 }),
+            exit = fadeOut(animationSpec = tween(200)) +
+                    scaleOut(targetScale = 0.92f) +
+                    slideOutVertically(targetOffsetY = { it / 6 })
+        ) {
+            RechargeDialogContent(
+                secondaryColor = secondaryColor,
+                tertiaryColor = tertiaryColor,
+                selectedPresetAmount = selectedPresetAmount,
+                customAmountText = customAmountText,
+                selectedPaymentMethod = selectedPaymentMethod,
+                cardNumber = cardNumber,
+                expiryDate = expiryDate,
+                cvvCode = cvvCode,
+                onPresetAmountSelected = { amount ->
+                    selectedPresetAmount = amount
+                    customAmountText = amount.toString()
+                },
+                onCustomAmountChanged = { newText ->
+                    customAmountText = newText
+                    newText.toIntOrNull()?.let { selectedPresetAmount = it }
+                },
+                onPaymentMethodSelected = { method -> selectedPaymentMethod = method },
+                onCardNumberChanged = { cardNumber = it },
+                onExpiryDateChanged = { expiryDate = it },
+                onCvvCodeChanged = { cvvCode = it },
+                onClose = { showRechargeDialog = false },
+                onConfirm = {
+                    val amountToAdd = customAmountText.toDoubleOrNull() ?: selectedPresetAmount.toDouble()
+                    currentBalance += amountToAdd
+                    val formattedAmount = String.format(java.util.Locale.US, "%.2f", amountToAdd)
+                    recentActivity = listOf(
+                        Triple("Recarga $selectedPaymentMethod", "+ $$formattedAmount MXN", "Ahora mismo")
+                    ) + recentActivity
+                    successMessage = "¡Recarga de $$formattedAmount MXN realizada con éxito!"
+                    showRechargeDialog = false
+                }
+            )
+        }
 
-        Text(
-            text = "Últimos Movimientos",
-            style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = tertiaryColor)
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val recentActivity = listOf(
-            Triple("Ruta 4B - Centro", "- $12.00 MXN", "Hoy, 08:30 AM"),
-            Triple("Recarga OXXO", "+ $100.00 MXN", "Ayer, 06:15 PM"),
-            Triple("Ruta 12 - Universidad", "- $12.00 MXN", "Ayer, 01:20 PM")
-        )
-
-        recentActivity.forEach { (title, amount, date) ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        // Success Toast Notification
+        AnimatedVisibility(
+            visible = successMessage != null,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp),
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+        ) {
+            Surface(
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                color = Color(0xFF16A34A),
+                shadowElevation = 8.dp
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(title, fontWeight = FontWeight.SemiBold, color = tertiaryColor)
-                        Text(date, fontSize = 12.sp, color = Color(0xFF94A3B8))
-                    }
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        amount,
+                        text = successMessage ?: "",
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        color = if (amount.startsWith("+")) Color(0xFF16A34A) else tertiaryColor
+                        fontSize = 14.sp,
+                        fontFamily = Lexend
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RechargeDialogContent(
+    secondaryColor: Color,
+    tertiaryColor: Color,
+    selectedPresetAmount: Int,
+    customAmountText: String,
+    selectedPaymentMethod: String,
+    cardNumber: String,
+    expiryDate: String,
+    cvvCode: String,
+    onPresetAmountSelected: (Int) -> Unit,
+    onCustomAmountChanged: (String) -> Unit,
+    onPaymentMethodSelected: (String) -> Unit,
+    onCardNumberChanged: (String) -> Unit,
+    onExpiryDateChanged: (String) -> Unit,
+    onCvvCodeChanged: (String) -> Unit,
+    onClose: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(0.92f)
+            .padding(vertical = 16.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Recargar Tarjeta RutaPay",
+                        style = TextStyle(
+                            fontFamily = Lexend,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Selecciona el monto y método de pago simulado.",
+                        style = TextStyle(
+                            fontFamily = Lexend,
+                            fontSize = 13.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    )
+                }
+
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cerrar",
+                        tint = Color(0xFF94A3B8)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 1. MONTO A RECARGAR (MXN)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "MONTO A RECARGAR (MXN)",
+                    style = TextStyle(
+                        fontFamily = Lexend,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF475569)
+                    )
+                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFF0F9FF)
+                ) {
+                    Text(
+                        text = "Máx: $1,000 MXN",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = TextStyle(
+                            fontFamily = Lexend,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0284C7)
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Preset Amount Chips ($50, $100, $200, $500, $1000)
+            val presetAmounts = listOf(50, 100, 200, 500, 1000)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                presetAmounts.forEach { amount ->
+                    val isSelected = selectedPresetAmount == amount && customAmountText == amount.toString()
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .clickable { onPresetAmountSelected(amount) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) secondaryColor else Color(0xFFF1F5F9)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "$$amount",
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else Color(0xFF334155)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val parsedAmount = customAmountText.toDoubleOrNull() ?: 0.0
+            val isExceedingLimit = parsedAmount > 1000.0
+
+            // Custom Amount Input Field
+            OutlinedTextField(
+                value = customAmountText,
+                onValueChange = onCustomAmountChanged,
+                modifier = Modifier.fillMaxWidth(),
+                isError = isExceedingLimit,
+                prefix = {
+                    Text(
+                        "$ ",
+                        style = TextStyle(fontFamily = Lexend, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (isExceedingLimit) Color(0xFFDC2626) else Color(0xFF0F172A))
+                    )
+                },
+                textStyle = TextStyle(fontFamily = Lexend, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (isExceedingLimit) Color(0xFFDC2626) else Color(0xFF0F172A)),
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = if (isExceedingLimit) Color(0xFFDC2626) else secondaryColor,
+                    unfocusedBorderColor = if (isExceedingLimit) Color(0xFFDC2626) else Color(0xFFE2E8F0),
+                    focusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedContainerColor = Color(0xFFF8FAFC)
+                )
+            )
+
+            if (isExceedingLimit) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "El monto máximo permitido por recarga es de $1,000.00 MXN",
+                    style = TextStyle(
+                        fontFamily = Lexend,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFDC2626)
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 2. MÉTODO DE PAGO
+            Text(
+                text = "MÉTODO DE PAGO",
+                style = TextStyle(
+                    fontFamily = Lexend,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF475569)
+                )
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val paymentMethods = listOf(
+                Triple("Tarjeta Bancaria", Icons.Default.CreditCard, "Tarjeta Bancaria"),
+                Triple("Transferencia SPEI", Icons.Default.AccountBalance, "Transferencia SPEI"),
+                Triple("OXXO Pay", Icons.Default.Storefront, "OXXO Pay")
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                paymentMethods.forEach { (name, icon, label) ->
+                    val isSelected = selectedPaymentMethod == name
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(72.dp)
+                            .clickable { onPaymentMethodSelected(name) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) Color(0xFFF0F9FF) else Color.White,
+                        border = BorderStroke(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) secondaryColor else Color(0xFFE2E8F0)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = name,
+                                tint = if (isSelected) secondaryColor else Color(0xFF64748B),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = label,
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) secondaryColor else Color(0xFF475569)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. PAYMENT METHOD FORM DETAILS CONTAINER
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFF8FAFC),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    when (selectedPaymentMethod) {
+                        "Tarjeta Bancaria" -> {
+                            val cleanCardNumber = cardNumber.filter { it.isDigit() }
+                            val isCardNumberInvalid = cleanCardNumber.isNotEmpty() && cleanCardNumber.length < 16
+
+                            Text(
+                                text = "Número de Tarjeta (Simulador)",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = cardNumber,
+                                onValueChange = onCardNumberChanged,
+                                modifier = Modifier.fillMaxWidth(),
+                                isError = isCardNumberInvalid,
+                                textStyle = TextStyle(fontFamily = Lexend, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A)),
+                                shape = RoundedCornerShape(10.dp),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = if (isCardNumberInvalid) Color(0xFFEF4444) else secondaryColor,
+                                    unfocusedBorderColor = if (isCardNumberInvalid) Color(0xFFEF4444) else Color(0xFFCBD5E1),
+                                    errorBorderColor = Color(0xFFEF4444),
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White
+                                )
+                            )
+
+                            if (isCardNumberInvalid) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Número de tarjeta no válido (se requieren 16 dígitos)",
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 11.sp, color = Color(0xFFEF4444))
+                                )
+                            }
+
+                            val issuer = if (cardNumber.startsWith("4")) "Visa" else if (cardNumber.startsWith("5")) "Mastercard" else "Unknown"
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Emisor: $issuer",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Vigencia",
+                                        style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    OutlinedTextField(
+                                        value = expiryDate,
+                                        onValueChange = onExpiryDateChanged,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textStyle = TextStyle(fontFamily = Lexend, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color(0xFFCBD5E1),
+                                            unfocusedBorderColor = Color(0xFFCBD5E1),
+                                            focusedContainerColor = Color.White,
+                                            unfocusedContainerColor = Color.White
+                                        )
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "CVV",
+                                        style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    OutlinedTextField(
+                                        value = cvvCode,
+                                        onValueChange = onCvvCodeChanged,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textStyle = TextStyle(fontFamily = Lexend, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color(0xFFCBD5E1),
+                                            unfocusedBorderColor = Color(0xFFCBD5E1),
+                                            focusedContainerColor = Color.White,
+                                            unfocusedContainerColor = Color.White
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        "Transferencia SPEI" -> {
+                            Text(
+                                text = "CLABE Interbancaria (Simulador)",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                            ) {
+                                Text(
+                                    text = "0121 8001 5492 8371 04",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Realiza tu transferencia desde la banca móvil de tu elección. El saldo se acreditará automáticamente.",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
+                            )
+                        }
+
+                        "OXXO Pay" -> {
+                            Text(
+                                text = "Código de Referencia OXXO (Simulador)",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                            ) {
+                                Text(
+                                    text = "9382-1049-5820-1928",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Muestra este código en la caja de cualquier tienda OXXO para realizar tu abono.",
+                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF64748B))
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Confirm Button
+            val displayAmount = customAmountText.ifEmpty { "0" }
+            val cleanCardNumber = cardNumber.filter { it.isDigit() }
+            val isCardValid = if (selectedPaymentMethod == "Tarjeta Bancaria") cleanCardNumber.length == 16 else true
+            val isFormValid = !isExceedingLimit && parsedAmount > 0.0 && isCardValid
+
+            Button(
+                onClick = onConfirm,
+                enabled = isFormValid,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = secondaryColor,
+                    disabledContainerColor = Color(0xFFCBD5E1)
+                )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isExceedingLimit) "Monto Excede el Límite de $1,000 MXN"
+                               else if (!isCardValid) "Número de Tarjeta Incompleto"
+                               else "Confirmar Abono de $$displayAmount MXN",
+                        style = TextStyle(
+                            fontFamily = Lexend,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     )
                 }
             }
