@@ -795,7 +795,7 @@ fun DashboardScreen(
 // 1. MAP VIEW SECTION
 // -------------------------------------------------------------
 @Composable
-private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
+fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -1048,7 +1048,7 @@ private fun MapViewSection(primaryColor: Color, secondaryColor: Color, tertiaryC
 // 2. CARD VIEW SECTION (TARJETA)
 // -------------------------------------------------------------
 @Composable
-private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
+fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
     var isCardActive by remember { mutableStateOf(true) }
     var currentBalance by remember { mutableDoubleStateOf(250.50) }
     var activeSector by remember { mutableStateOf("Estudiante") }
@@ -1456,7 +1456,7 @@ private fun CardViewSection(primaryColor: Color, secondaryColor: Color, tertiary
 }
 
 @Composable
-private fun RechargeDialogContent(
+fun RechargeDialogContent(
     secondaryColor: Color,
     tertiaryColor: Color,
     selectedPresetAmount: Int,
@@ -1912,7 +1912,7 @@ private fun RechargeDialogContent(
 // 3. QR VIEW SECTION
 // -------------------------------------------------------------
 @Composable
-private fun QrViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
+fun QrViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     LaunchedEffect(Unit) {
@@ -1982,7 +1982,7 @@ private fun QrViewSection(primaryColor: Color, secondaryColor: Color, tertiaryCo
 // 4. REWARDS VIEW SECTION (RECOMPENSAS)
 // -------------------------------------------------------------
 @Composable
-private fun RewardsViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
+fun RewardsViewSection(primaryColor: Color, secondaryColor: Color, tertiaryColor: Color) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -2071,7 +2071,7 @@ private fun RewardsViewSection(primaryColor: Color, secondaryColor: Color, terti
 // 5. PROFILE VIEW SECTION (PERFIL)
 // -------------------------------------------------------------
 @Composable
-private fun ProfileViewSection(
+fun ProfileViewSection(
     primaryColor: Color,
     secondaryColor: Color,
     tertiaryColor: Color,
@@ -2171,7 +2171,7 @@ private fun ProfileViewSection(
 // MODERN ANIMATED BOTTOM NAVIGATION BAR
 // -------------------------------------------------------------
 @Composable
-private fun ModernAnimatedBottomBar(
+fun ModernAnimatedBottomBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     primaryColor: Color,
@@ -2233,7 +2233,7 @@ private fun ModernAnimatedBottomBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     NavTabButton(
-                        item = NavTabItem("Regalo", Icons.Default.CardGiftcard, Icons.Outlined.CardGiftcard),
+                        item = NavTabItem("Puntos", Icons.Default.CardGiftcard, Icons.Outlined.CardGiftcard),
                         isSelected = selectedTab == 3,
                         onClick = { onTabSelected(3) },
                         primaryColor = primaryColor,
@@ -2286,7 +2286,7 @@ private fun ModernAnimatedBottomBar(
 }
 
 @Composable
-private fun NavTabButton(
+fun NavTabButton(
     item: NavTabItem,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -2345,7 +2345,7 @@ private fun NavTabButton(
     }
 }
 
-private data class NavTabItem(
+data class NavTabItem(
     val label: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
