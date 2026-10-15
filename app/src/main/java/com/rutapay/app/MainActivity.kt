@@ -7,8 +7,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -16,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rutapay.app.data.ConfigManager
 import com.rutapay.app.data.local.SessionManager
@@ -50,6 +53,25 @@ class MainActivity : ComponentActivity() {
 
                 val isLoggedIn by sessionManager.isLoggedIn.collectAsState(initial = false)
 
+                // Sesión persistente: la cookie JWT vive en memoria y se pierde al
+                // reiniciar la app. Se revalida contra GET /api/account mientras
+                // corre el splash; si falla, se va a login aunque el flag local
+                // diga lo contrario.
+                val sessionValid by produceState<Boolean?>(initialValue = null, isLoggedIn) {
+                    value = if (!isLoggedIn) false else authRepository.validateSession()
+                }
+
+                val backStackEntry by navController.currentBackStackEntryAsState()
+                // Guardián global de 401: si cualquier llamada limpia la sesión
+                // (ver ApiClient), y estamos en el dashboard, volver a login.
+                LaunchedEffect(isLoggedIn, backStackEntry?.destination?.route) {
+                    if (!isLoggedIn && backStackEntry?.destination?.route == NavigationDestinations.DASHBOARD) {
+                        navController.navigate(NavigationDestinations.LOGIN) {
+                            popUpTo(NavigationDestinations.DASHBOARD) { inclusive = true }
+                        }
+                    }
+                }
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
                         navController = navController,
@@ -57,8 +79,8 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable(NavigationDestinations.SPLASH) {
-                            com.rutapay.app.ui.SplashScreen(onTimeOut = {
-                                val destination = if (isLoggedIn) NavigationDestinations.DASHBOARD else NavigationDestinations.LOGIN
+                            com.rutapay.app.ui.splash.SplashScreen(onTimeOut = {
+                                val destination = if (sessionValid == true) NavigationDestinations.DASHBOARD else NavigationDestinations.LOGIN
                                 navController.navigate(destination) {
                                     popUpTo(NavigationDestinations.SPLASH) { inclusive = true }
                                 }
@@ -115,9 +137,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
-                        }
-                        composable(NavigationDestinations.CLIENT) {
-                            com.rutapay.app.ui.ClientScreen(configManager)
                         }
                     }
                 }

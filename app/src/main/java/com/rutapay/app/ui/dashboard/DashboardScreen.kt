@@ -26,7 +26,7 @@ import com.rutapay.app.data.repository.AuthRepository
 import com.rutapay.app.data.repository.CardRepository
 import com.rutapay.app.data.repository.PaymentRepository
 import com.rutapay.app.data.repository.RewardsRepository
-import com.rutapay.app.ui.ModernAnimatedBottomBar
+import com.rutapay.app.ui.dashboard.navigation.ModernAnimatedBottomBar
 import com.rutapay.app.ui.dashboard.card.CardSection
 import com.rutapay.app.ui.dashboard.card.CardViewModel
 import com.rutapay.app.ui.dashboard.map.MapSection
@@ -63,7 +63,7 @@ fun DashboardScreen(
         factory = CardViewModel.Factory(cardRepository, authRepository)
     )
     val qrViewModel: QrViewModel = viewModel(
-        factory = QrViewModel.Factory(paymentRepository)
+        factory = QrViewModel.Factory(paymentRepository, sessionManager)
     )
     val rewardsViewModel: RewardsViewModel = viewModel(
         factory = RewardsViewModel.Factory(rewardsRepository, authRepository)

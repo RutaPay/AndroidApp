@@ -104,6 +104,19 @@ class AuthRepository(
         }
     }
 
+    /**
+     * Revalida la sesión contra la API. La cookie JWT HttpOnly vive solo en
+     * memoria (Ktor), así que al reiniciar la app el flag local puede decir
+     * "logueado" cuando la sesión real ya murió.
+     */
+    suspend fun validateSession(): Boolean {
+        return try {
+            getCurrentUser().isSuccess
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     suspend fun logout(): Result<Unit> {
         return try {
             val base = apiClient.baseUrl()

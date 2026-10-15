@@ -3,6 +3,8 @@ package com.rutapay.app.data.repository
 import android.util.Log
 import com.rutapay.app.data.model.GeneratePaymentRequestDto
 import com.rutapay.app.data.model.PaymentQrTokenResponseDto
+import com.rutapay.app.data.model.ValidatePaymentRequestDto
+import com.rutapay.app.data.model.ValidatePaymentResultDto
 import com.rutapay.app.data.remote.ApiClient
 import com.rutapay.app.ui.theme.WebErrors
 import io.ktor.client.call.body
@@ -29,6 +31,29 @@ class PaymentRepository(
             }
         } catch (e: Exception) {
             Log.e("PaymentRepo", "generate error", e)
+            Result.failure(Exception(WebErrors.RECHARGE_NO_CONNECTION))
+        }
+    }
+
+    /**
+     * Valida un token de pago escaneado (`POST /api/Payments/validate`).
+     * Endpoint público: no requiere sesión, igual que el validador del autobús.
+     */
+    suspend fun validatePayment(
+        token: String,
+        route: String? = null,
+        busUnitId: String? = null
+    ): Result<ValidatePaymentResultDto> {
+        return try {
+            val base = apiClient.baseUrl()
+            val response = apiClient.client.post("$base/api/Payments/validate") {
+                setBody(ValidatePaymentRequestDto(token = token, route = route, busUnitId = busUnitId))
+            }
+            // Tanto el éxito (200) como los rechazos (400) traen el Status en el body.
+            val result = response.body<ValidatePaymentResultDto>()
+            Result.success(result)
+        } catch (e: Exception) {
+            Log.e("PaymentRepo", "validate error", e)
             Result.failure(Exception(WebErrors.RECHARGE_NO_CONNECTION))
         }
     }

@@ -61,6 +61,7 @@ dependencies {
 
     // SignalR
     implementation(libs.signalr)
+    implementation(libs.gson)
 
     // ZXing
     implementation(libs.zxing.core)

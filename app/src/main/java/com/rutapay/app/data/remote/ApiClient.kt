@@ -50,7 +50,14 @@ class ApiClient(
         HttpResponseValidator {
             validateResponse { response ->
                 if (response.status.value == 401) {
-                    Log.w("ApiClient", "401 Unauthorized: ${response.call.request.url}")
+                    Log.w("ApiClient", "401 Unauthorized: ${response.call.request.url} — limpiando sesión")
+                    // Guardián global: cualquier 401 invalida la sesión local y
+                    // MainActivity redirige a login si está en el dashboard.
+                    try {
+                        sessionManager.clearSession()
+                    } catch (e: Exception) {
+                        Log.e("ApiClient", "No se pudo limpiar la sesión", e)
+                    }
                 }
             }
         }
