@@ -24,20 +24,21 @@ import kotlinx.coroutines.launch
  * `Clients.Group(transactionId).SendAsync("Transaction Status", estado, payload)`.
  */
 data class PaymentStatusUpdate(
-    @SerializedName("Status") val status: String = "",
-    @SerializedName("Message") val message: String? = null,
-    @SerializedName("TransactionId") val transactionId: String? = null,
-    @SerializedName("Reference") val reference: String? = null,
-    @SerializedName("PassengerName") val passengerName: String? = null,
-    @SerializedName("TariffType") val tariffType: String? = null,
-    @SerializedName("FareDeducted") val fareDeducted: Double? = null,
-    @SerializedName("RemainingBalance") val remainingBalance: Double? = null,
-    @SerializedName("PointsEarned") val pointsEarned: Int? = null,
-    @SerializedName("TotalPoints") val totalPoints: Int? = null,
-    @SerializedName("Route") val route: String? = null,
-    @SerializedName("BusUnit") val busUnit: String? = null,
-    @SerializedName("RequiredFare") val requiredFare: Double? = null,
-    @SerializedName("CurrentBalance") val currentBalance: Double? = null
+    // El hub serializa en camelCase (igual que los controladores).
+    @SerializedName("status") val status: String = "",
+    @SerializedName("message") val message: String? = null,
+    @SerializedName("transactionId") val transactionId: String? = null,
+    @SerializedName("reference") val reference: String? = null,
+    @SerializedName("passengerName") val passengerName: String? = null,
+    @SerializedName("tariffType") val tariffType: String? = null,
+    @SerializedName("fareDeducted") val fareDeducted: Double? = null,
+    @SerializedName("remainingBalance") val remainingBalance: Double? = null,
+    @SerializedName("pointsEarned") val pointsEarned: Int? = null,
+    @SerializedName("totalPoints") val totalPoints: Int? = null,
+    @SerializedName("route") val route: String? = null,
+    @SerializedName("busUnit") val busUnit: String? = null,
+    @SerializedName("requiredFare") val requiredFare: Double? = null,
+    @SerializedName("currentBalance") val currentBalance: Double? = null
 )
 
 /**

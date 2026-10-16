@@ -93,13 +93,25 @@ class AuthRepository(
             val base = apiClient.baseUrl()
             val response = apiClient.client.get("$base/api/account")
             if (response.status.isSuccess()) {
-                val user = response.body<UserDto>()
-                sessionManager.saveUserSession(user.email, user.fullName, user.cardUID)
-                Result.success(user)
+                try {
+                    val user = apiClient.parseAndLog<UserDto>(response, "AuthRepo", "GET /api/account")
+                    sessionManager.saveUserSession(
+                        user.email.ifBlank { "" },
+                        user.fullName.ifBlank { user.userName },
+                        user.cardUID
+                    )
+                    Result.success(user)
+                } catch (e: Exception) {
+                    Log.e("AuthRepo", "getCurrentUser: parseo fallido", e)
+                    Result.failure(Exception("No se pudieron leer los datos del usuario"))
+                }
             } else {
+                val body = response.bodyAsText()
+                Log.w("AuthRepo", "getCurrentUser failed ${response.status}: ${body.take(300)}")
                 Result.failure(Exception("Sesión inválida"))
             }
         } catch (e: Exception) {
+            Log.e("AuthRepo", "getCurrentUser error", e)
             Result.failure(e)
         }
     }

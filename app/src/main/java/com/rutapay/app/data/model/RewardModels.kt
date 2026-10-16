@@ -3,37 +3,39 @@ package com.rutapay.app.data.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+// La API serializa en camelCase (p. ej. "pointsCost").
+
 @Serializable
 data class RewardDto(
-    @SerialName("Id") val id: Int = 0,
-    @SerialName("Title") val title: String = "",
-    @SerialName("Description") val description: String = "",
-    @SerialName("PointsCost") val pointsCost: Int = 0,
-    @SerialName("RewardType") val rewardType: String = "",
-    @SerialName("Value") val value: Double = 0.0,
-    @SerialName("IsActive") val isActive: Boolean = true
+    @SerialName("id") val id: Int = 0,
+    @SerialName("title") val title: String = "",
+    @SerialName("description") val description: String = "",
+    @SerialName("pointsCost") val pointsCost: Int = 0,
+    @SerialName("rewardType") val rewardType: String = "",
+    @SerialName("value") val value: Double = 0.0,
+    @SerialName("isActive") val isActive: Boolean = true
 )
 
 @Serializable
 data class RedeemRewardDto(
-    @SerialName("RewardId") val rewardId: Int
+    @SerialName("rewardId") val rewardId: Int
 )
 
 @Serializable
 data class UserRewardDto(
-    @SerialName("Id") val id: String = "",
-    @SerialName("RewardId") val rewardId: Int = 0,
-    @SerialName("Title") val title: String = "Recompensa",
-    @SerialName("RedeemedAt") val redeemedAt: String = "",
-    @SerialName("Code") val code: String = "",
-    @SerialName("IsUsed") val isUsed: Boolean = false
+    @SerialName("id") val id: String = "",
+    @SerialName("rewardId") val rewardId: Int = 0,
+    @SerialName("title") val title: String = "Recompensa",
+    @SerialName("redeemedAt") val redeemedAt: String = "",
+    @SerialName("code") val code: String = "",
+    @SerialName("isUsed") val isUsed: Boolean = false
 )
 
 @Serializable
 data class RedeemResultDto(
-    @SerialName("Message") val message: String = "",
-    @SerialName("RemainingPoints") val remainingPoints: Int = 0,
-    @SerialName("NewBalance") val newBalance: Double = 0.0,
-    @SerialName("CouponCode") val couponCode: String = "",
-    @SerialName("RewardType") val rewardType: String = ""
+    @SerialName("message") val message: String = "",
+    @SerialName("remainingPoints") val remainingPoints: Int = 0,
+    @SerialName("newBalance") val newBalance: Double = 0.0,
+    @SerialName("couponCode") val couponCode: String = "",
+    @SerialName("rewardType") val rewardType: String = ""
 )

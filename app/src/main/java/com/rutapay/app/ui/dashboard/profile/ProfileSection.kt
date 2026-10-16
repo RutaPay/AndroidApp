@@ -170,6 +170,21 @@ fun ProfileSection(
                         )
                     }
 
+                    if (state.error != null && user == null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.error ?: "",
+                            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebError, fontWeight = FontWeight.Medium),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Reintentar",
+                            style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WebPrimary),
+                            modifier = Modifier.clickable { viewModel.load() }
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Franja miembro/estado (apilada en móvil)

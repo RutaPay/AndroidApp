@@ -144,7 +144,7 @@ fun RewardsSection(
                             )
                             Text(
                                 text = "$points",
-                                style = TextStyle(fontFamily = Lexend, fontSize = 30.sp, fontWeight = FontWeight.Black, color = WebPrimary)
+                                style = TextStyle(fontFamily = Lexend, fontSize = 26.sp, fontWeight = FontWeight.Black, color = WebPrimary)
                             )
                         }
                     }
@@ -164,7 +164,7 @@ fun RewardsSection(
                             )
                             Text(
                                 text = "Nivel 1",
-                                style = TextStyle(fontFamily = Lexend, fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color(0xFF1F2937))
+                                style = TextStyle(fontFamily = Lexend, fontSize = 26.sp, fontWeight = FontWeight.Black, color = Color(0xFF1F2937))
                             )
                         }
                     }

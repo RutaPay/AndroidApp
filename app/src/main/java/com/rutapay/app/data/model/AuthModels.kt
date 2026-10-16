@@ -3,40 +3,44 @@ package com.rutapay.app.data.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+// La API serializa en camelCase (p. ej. "userName"). Los nombres deben
+// coincidir exactamente: con ignoreUnknownKeys un desajuste no falla,
+// simplemente deja todos los campos en sus defaults (pantallas en blanco).
+
 @Serializable
 data class LoginRequestDto(
-    @SerialName("Email") val email: String,
-    @SerialName("Password") val password: String
+    @SerialName("email") val email: String,
+    @SerialName("password") val password: String
 )
 
 @Serializable
 data class RegisterRequestDto(
-    @SerialName("FullName") val fullName: String,
-    @SerialName("LastNames") val lastNames: String,
-    @SerialName("Email") val email: String,
-    @SerialName("Password") val password: String,
-    @SerialName("PhoneNumber") val phoneNumber: String
+    @SerialName("fullName") val fullName: String,
+    @SerialName("lastNames") val lastNames: String,
+    @SerialName("email") val email: String,
+    @SerialName("password") val password: String,
+    @SerialName("phoneNumber") val phoneNumber: String
 )
 
 @Serializable
 data class NewUserDto(
-    @SerialName("UserName") val userName: String = "",
-    @SerialName("Email") val email: String = "",
-    @SerialName("PhoneNumber") val phoneNumber: String = ""
+    @SerialName("userName") val userName: String = "",
+    @SerialName("email") val email: String = "",
+    @SerialName("phoneNumber") val phoneNumber: String = ""
 )
 
 @Serializable
 data class UserDto(
-    @SerialName("UserName") val userName: String = "",
-    @SerialName("FullName") val fullName: String = "",
-    @SerialName("LastNames") val lastNames: String = "",
-    @SerialName("Email") val email: String = "",
-    @SerialName("PhoneNumber") val phoneNumber: String = "",
-    @SerialName("CardUID") val cardUID: String = "",
-    @SerialName("CardBalance") val cardBalance: String = "0.00",
-    @SerialName("CardStatus") val cardStatus: String = "Active",
-    @SerialName("Points") val points: Int = 0,
-    @SerialName("CreatedOn") val createdOn: String = "",
-    @SerialName("AccountType") val accountType: String = "User",
-    @SerialName("IsAuthenticated") val isAuthenticated: Boolean = false
+    @SerialName("userName") val userName: String = "",
+    @SerialName("fullName") val fullName: String = "",
+    @SerialName("lastNames") val lastNames: String = "",
+    @SerialName("email") val email: String = "",
+    @SerialName("phoneNumber") val phoneNumber: String = "",
+    @SerialName("cardUID") val cardUID: String = "",
+    @SerialName("cardBalance") val cardBalance: String = "0.00",
+    @SerialName("cardStatus") val cardStatus: String = "Active",
+    @SerialName("points") val points: Int = 0,
+    @SerialName("createdOn") val createdOn: String = "",
+    @SerialName("accountType") val accountType: String = "User",
+    @SerialName("isAuthenticated") val isAuthenticated: Boolean = false
 )

@@ -22,8 +22,15 @@ class RewardsRepository(
             val base = apiClient.baseUrl()
             val response = apiClient.client.get("$base/api/rewards")
             if (response.status.isSuccess()) {
-                Result.success(response.body<List<RewardDto>>())
+                try {
+                    Result.success(apiClient.parseAndLog<List<RewardDto>>(response, "RewardsRepo", "GET rewards"))
+                } catch (e: Exception) {
+                    Log.e("RewardsRepo", "getRewards: parseo fallido", e)
+                    Result.failure(Exception(WebErrors.NETWORK_ERROR))
+                }
             } else {
+                val body = response.bodyAsText()
+                Log.w("RewardsRepo", "getRewards failed ${response.status}: ${body.take(300)}")
                 Result.failure(Exception(WebErrors.NETWORK_ERROR))
             }
         } catch (e: Exception) {
@@ -37,7 +44,12 @@ class RewardsRepository(
             val base = apiClient.baseUrl()
             val response = apiClient.client.get("$base/api/rewards/my-rewards")
             if (response.status.isSuccess()) {
-                Result.success(response.body<List<UserRewardDto>>())
+                try {
+                    Result.success(apiClient.parseAndLog<List<UserRewardDto>>(response, "RewardsRepo", "GET my-rewards"))
+                } catch (e: Exception) {
+                    Log.e("RewardsRepo", "getMyRewards: parseo fallido", e)
+                    Result.success(emptyList())
+                }
             } else {
                 Result.success(emptyList())
             }

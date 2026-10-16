@@ -482,8 +482,7 @@ private fun FullScreenMap(
                 lineDasharray = DoubleListValue(listOf(2.0, 2.0))
             }
         }
-        // Encuadra la cámara a la ruta cargada (debe vivir dentro del
-        // contenido del mapa: MapEffect exige el MapApplier).
+
         MapEffect(idaFeatures, regresoFeatures) { mapView ->
             val points = (idaFeatures + regresoFeatures).flatMap { feature ->
                 when (val geometry = feature.geometry()) {

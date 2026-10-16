@@ -23,8 +23,15 @@ class CardRepository(
             val base = apiClient.baseUrl()
             val response = apiClient.client.get("$base/api/Cards/my-card")
             if (response.status.isSuccess()) {
-                Result.success(response.body<CardResponseDto>())
+                try {
+                    Result.success(apiClient.parseAndLog<CardResponseDto>(response, "CardRepo", "GET my-card"))
+                } catch (e: Exception) {
+                    Log.e("CardRepo", "getMyCard: parseo fallido", e)
+                    Result.failure(Exception(WebErrors.NETWORK_ERROR))
+                }
             } else {
+                val body = response.bodyAsText()
+                Log.w("CardRepo", "getMyCard failed ${response.status}: ${body.take(300)}")
                 Result.failure(Exception(WebErrors.NETWORK_ERROR))
             }
         } catch (e: Exception) {
@@ -69,8 +76,15 @@ class CardRepository(
             val base = apiClient.baseUrl()
             val response = apiClient.client.get("$base/api/Cards/transactions")
             if (response.status.isSuccess()) {
-                Result.success(response.body<List<TransactionDto>>())
+                try {
+                    Result.success(apiClient.parseAndLog<List<TransactionDto>>(response, "CardRepo", "GET transactions"))
+                } catch (e: Exception) {
+                    Log.e("CardRepo", "getTransactions: parseo fallido", e)
+                    Result.failure(Exception(WebErrors.NETWORK_ERROR))
+                }
             } else {
+                val body = response.bodyAsText()
+                Log.w("CardRepo", "getTransactions failed ${response.status}: ${body.take(300)}")
                 Result.failure(Exception(WebErrors.NETWORK_ERROR))
             }
         } catch (e: Exception) {
