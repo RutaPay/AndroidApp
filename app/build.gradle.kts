@@ -73,6 +73,10 @@ dependencies {
     // Serialization
     implementation(libs.kotlinx.serialization.json)
 
+    // Map
+    implementation("com.mapbox.maps:android-ndk27:11.32.1")
+    implementation("com.mapbox.extension:maps-compose-ndk27:11.32.1")
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

@@ -41,17 +41,40 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mapbox.geojson.Feature
+import com.mapbox.geojson.FeatureCollection
+import com.mapbox.geojson.LineString
+import com.mapbox.geojson.MultiLineString
+import com.mapbox.geojson.Point
+import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.extension.compose.MapEffect
+import com.mapbox.maps.extension.compose.MapboxMap
+import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
+import com.mapbox.maps.extension.compose.rememberMapState
+import com.mapbox.maps.extension.compose.style.ColorValue
+import com.mapbox.maps.extension.compose.style.DoubleListValue
+import com.mapbox.maps.extension.compose.style.DoubleValue
+import com.mapbox.maps.extension.compose.style.layers.generated.LineCapValue
+import com.mapbox.maps.extension.compose.style.layers.generated.LineJoinValue
+import com.mapbox.maps.extension.compose.style.layers.generated.LineLayer
+import com.mapbox.maps.extension.compose.style.sources.GeoJSONData
+import com.mapbox.maps.extension.compose.style.sources.generated.GeoJsonSourceState
+import com.mapbox.maps.plugin.animation.MapAnimationOptions
+import com.mapbox.maps.plugin.animation.camera
 import com.rutapay.app.ui.theme.Lexend
 import com.rutapay.app.ui.theme.WebCardBorder
 import com.rutapay.app.ui.theme.WebDark
@@ -59,7 +82,13 @@ import com.rutapay.app.ui.theme.WebMutedText
 import com.rutapay.app.ui.theme.WebPrimary
 import com.rutapay.app.ui.theme.WebRouteIda
 import com.rutapay.app.ui.theme.WebRouteRegreso
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 // Rutas de Celaya tomadas de RutaPayWeb (MapView.vue).
 val CelayaRoutes = listOf(
@@ -90,15 +119,9 @@ val CelayaRoutes = listOf(
  * Solo se muestran el mapa, la barra de búsqueda flotante y la navegación
  * inferior. Las rutas viven en un panel inferior colapsable.
  *
- * TODO: integrar MapLibre (org.maplibre.gl) en [FullScreenMap]:
- *  - Sustituir el placeholder por el `MapView` de MapLibre.
- *  - Centro inicial Celaya: lat 20.521788, lon -100.8140458, zoom 12
- *    (igual que la web).
- *  - Al seleccionar ruta, cargar su GeoJSON desde
- *    `https://raw.githubusercontent.com/RutaPay/Routes/refs/heads/main/{routeId}.geojson`
- *    (routeId = texto antes de " - ", ej. "R8").
- *  - Pintar features IDA en #449DD1 (ancho 4) y REGRESO en #052B4A discontinuo,
- *    y encuadrar la cámara a los bounds de la ruta.
+ * El mapa (Mapbox) carga la ruta seleccionada igual que la web: GeoJSON por
+ * routeId desde GitHub, IDA sólida #449DD1 y REGRESO discontinuo #052B4A,
+ * con la cámara encuadrada a la ruta.
  */
 @Composable
 fun MapSection(
@@ -109,6 +132,8 @@ fun MapSection(
     var search by remember { mutableStateOf("") }
     var selectedRoute by remember { mutableStateOf<String?>(null) }
     var loadingRoute by remember { mutableStateOf(false) }
+    var routeError by remember { mutableStateOf<String?>(null) }
+    var reloadTick by remember { mutableIntStateOf(0) }
     var panelExpanded by remember { mutableStateOf(false) }
 
     val filtered = remember(search) {
@@ -116,20 +141,13 @@ fun MapSection(
         else CelayaRoutes.filter { it.contains(search, ignoreCase = true) }
     }
 
-    // Simula el trazado de la ruta hasta que MapLibre esté integrado.
-    LaunchedEffect(selectedRoute) {
-        if (selectedRoute != null) {
-            loadingRoute = true
-            delay(1200)
-            loadingRoute = false
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        // ---- Mapa a pantalla completa ----
+        // ---- Mapa a pantalla completa (carga la ruta como la web) ----
         FullScreenMap(
             selectedRoute = selectedRoute,
-            loadingRoute = loadingRoute,
+            reloadTick = reloadTick,
+            onLoadingChange = { loadingRoute = it },
+            onError = { routeError = it },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -211,6 +229,47 @@ fun MapSection(
             }
         }
 
+        // ---- Error de carga (se auto-oculta, no interfiere con lista ni indicador) ----
+        AnimatedVisibility(
+            visible = routeError != null,
+            enter = expandVertically(),
+            exit = shrinkVertically(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(bottom = 120.dp, start = 16.dp, end = 16.dp)
+        ) {
+            routeError?.let { message ->
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD93025)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = message,
+                            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFFD93025)),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Reintentar",
+                            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WebPrimary),
+                            modifier = Modifier.clickable { reloadTick++ }
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        IconButton(onClick = { routeError = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = WebMutedText, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+        }
+
         // ---- Panel inferior de rutas ----
         Card(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
@@ -219,7 +278,6 @@ fun MapSection(
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column {
-                // Tirador + encabezado (siempre visible)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -240,7 +298,7 @@ fun MapSection(
                         Icon(Icons.Default.DirectionsBus, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Rutas de Celaya",
+                            text = "Rutas",
                             style = TextStyle(fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WebDark),
                             modifier = Modifier.weight(1f)
                         )
@@ -321,29 +379,136 @@ fun MapSection(
 @Composable
 private fun FullScreenMap(
     selectedRoute: String?,
-    loadingRoute: Boolean,
+    reloadTick: Int,
+    onLoadingChange: (Boolean) -> Unit,
+    onError: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier.background(Color(0xFFD1D5DB)),
-        contentAlignment = Alignment.Center
+    val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current.density
+
+    // Descarga del GeoJSON igual que la web (MapView.vue: loadRoute).
+    var idaFeatures by remember { mutableStateOf<List<Feature>>(emptyList()) }
+    var regresoFeatures by remember { mutableStateOf<List<Feature>>(emptyList()) }
+
+    LaunchedEffect(selectedRoute, reloadTick) {
+        if (selectedRoute == null) {
+            idaFeatures = emptyList()
+            regresoFeatures = emptyList()
+            onLoadingChange(false)
+            onError(null)
+            return@LaunchedEffect
+        }
+        onLoadingChange(true)
+        onError(null)
+        try {
+            val routeId = selectedRoute.substringBefore(" - ")
+            val json = withContext(Dispatchers.IO) {
+                URL(
+                    "https://raw.githubusercontent.com/RutaPay/Routes/refs/heads/main/$routeId.geojson"
+                ).readText()
+            }
+            val features = FeatureCollection.fromJson(json).features() ?: emptyList()
+            idaFeatures = features.filter {
+                it.getStringProperty("name")?.contains("IDA") == true
+            }
+            regresoFeatures = features.filter {
+                it.getStringProperty("name")?.contains("REGRESO") == true
+            }
+            onLoadingChange(false)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            idaFeatures = emptyList()
+            regresoFeatures = emptyList()
+            onError("No se pudo cargar la ruta. Revisa tu conexión e inténtalo de nuevo.")
+            onLoadingChange(false)
+        }
+    }
+
+    val idaSourceState = remember { GeoJsonSourceState("route-ida") }
+    val regresoSourceState = remember { GeoJsonSourceState("route-regreso") }
+    LaunchedEffect(idaFeatures) {
+        idaSourceState.data = GeoJSONData(idaFeatures)
+    }
+    LaunchedEffect(regresoFeatures) {
+        regresoSourceState.data = GeoJSONData(regresoFeatures)
+    }
+
+    val mapState = rememberMapState {
+        coroutineScope.launch {
+            mapLoadingErrorEvents.onEach {
+                // Error occurred when loading the map, try to handle it gracefully here
+            }
+        }
+        coroutineScope.launch {
+            styleLoadedEvents.first().let {
+                // Map is setup and style has loaded, Now you can add data or make other map adjustments.
+            }
+        }
+    }
+    MapboxMap(
+        Modifier.fillMaxSize(),
+        mapState = mapState,
+        mapViewportState = rememberMapViewportState {
+            setCameraOptions {
+                zoom(12.0)
+                center(Point.fromLngLat(-100.8140458, 20.521788))
+                pitch(0.0)
+                bearing(0.0)
+            }
+        },
+        logo = {
+            Logo(Modifier.padding(bottom = 40.dp))
+        },
+        attribution = {
+            Attribution(Modifier.padding(bottom = 40.dp))
+        }
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.Map,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(56.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Celaya · 20.521788, -100.8140458",
-                style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-            )
-            Text(
-                text = "Aquí se integrará MapLibre",
-                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
-            )
+        if (idaFeatures.isNotEmpty()) {
+            LineLayer(sourceState = idaSourceState, layerId = "route-ida") {
+                lineCap = LineCapValue.ROUND
+                lineJoin = LineJoinValue.ROUND
+                lineColor = ColorValue(Color(0xFF449DD1))
+                lineWidth = DoubleValue(4.0)
+            }
+        }
+        if (regresoFeatures.isNotEmpty()) {
+            LineLayer(sourceState = regresoSourceState, layerId = "route-regreso") {
+                lineCap = LineCapValue.ROUND
+                lineJoin = LineJoinValue.ROUND
+                lineColor = ColorValue(Color(0xFF052B4A))
+                lineWidth = DoubleValue(4.0)
+                lineDasharray = DoubleListValue(listOf(2.0, 2.0))
+            }
+        }
+        // Encuadra la cámara a la ruta cargada (debe vivir dentro del
+        // contenido del mapa: MapEffect exige el MapApplier).
+        MapEffect(idaFeatures, regresoFeatures) { mapView ->
+            val points = (idaFeatures + regresoFeatures).flatMap { feature ->
+                when (val geometry = feature.geometry()) {
+                    is LineString -> geometry.coordinates()
+                    is MultiLineString -> geometry.coordinates().flatten()
+                    else -> emptyList()
+                }
+            }
+            if (points.size >= 2) {
+                val camera = mapView.mapboxMap.cameraForCoordinates(
+                    points,
+                    EdgeInsets(
+                        (120 * density).toDouble(),
+                        (16 * density).toDouble(),
+                        (190 * density).toDouble(),
+                        (16 * density).toDouble()
+                    ),
+                    null,
+                    null
+                )
+                mapView.camera.easeTo(
+                    camera,
+                    MapAnimationOptions.mapAnimationOptions { duration(1000L) }
+                )
+            }
         }
     }
 }

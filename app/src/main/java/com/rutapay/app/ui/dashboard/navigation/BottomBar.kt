@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rutapay.app.ui.theme.Lexend
 
-// Movido verbatim desde ui/Screens.kt (eliminado). Sin cambios visuales.
 @Composable
 fun ModernAnimatedBottomBar(
     selectedTab: Int,
