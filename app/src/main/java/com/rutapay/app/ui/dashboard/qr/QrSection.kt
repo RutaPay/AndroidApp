@@ -1,19 +1,15 @@
 package com.rutapay.app.ui.dashboard.qr
 
-import android.app.Activity
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.nfc.NfcAdapter
-import android.os.Handler
-import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,87 +20,55 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Nfc
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.rutapay.app.data.model.ValidatePaymentResultDto
-import com.rutapay.app.network.PaymentStatusUpdate
-import com.rutapay.app.ui.dashboard.map.CelayaRoutes
 import com.rutapay.app.ui.theme.Lexend
-import com.rutapay.app.ui.theme.WebBackground
-import com.rutapay.app.ui.theme.WebCardBorder
 import com.rutapay.app.ui.theme.WebDark
 import com.rutapay.app.ui.theme.WebError
-import com.rutapay.app.ui.theme.WebMutedText
 import com.rutapay.app.ui.theme.WebPrimary
+import com.rutapay.app.ui.theme.WebSecondary
 import com.rutapay.app.ui.theme.WebSuccess
 import com.rutapay.app.ui.theme.WebSuccessDark
+import com.rutapay.app.ui.theme.accountLabel
 import com.rutapay.app.ui.theme.formatMoney
-import com.rutapay.app.util.QrUtils
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import com.rutapay.app.ui.theme.isPreferentialAccount
 
-private enum class PayMode(val label: String, val icon: ImageVector) {
-    MY_QR("Mi QR", Icons.Default.QrCode2),
-    SCAN("Escanear", Icons.Default.PhotoCamera),
-    NFC("NFC", Icons.Default.Nfc)
-}
-
-/**
- * Vista Pagar con QR/NFC al estilo RutaPayWeb, con 3 modos:
- * - Mi QR: genera el token (`POST /api/Payments/generate`) y escucha la
- *   confirmación en vivo por SignalR ("Transaction Status").
- * - Escanear: lee un QR con la cámara y lo valida (`POST /api/Payments/validate`).
- * - NFC: lee el UID de una tarjeta con el lector NFC (si el equipo lo soporta).
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QrSection(
     primaryColor: Color,
@@ -113,356 +77,20 @@ fun QrSection(
     viewModel: QrViewModel
 ) {
     val state by viewModel.uiState.collectAsState()
-    var mode by remember { mutableStateOf(PayMode.MY_QR) }
-
-    DisposableEffect(Unit) {
-        onDispose { viewModel.stopLive() }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WebBackground)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "Pagar con QR / NFC",
-            style = TextStyle(fontFamily = Lexend, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = WebDark)
-        )
-        Text(
-            text = "Genera tu pasaje digital, escanea un código o acerca tu tarjeta al validador.",
-            style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, color = WebMutedText)
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // ---- Selector de modo ----
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White, RoundedCornerShape(16.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            PayMode.entries.forEach { entry ->
-                val selected = mode == entry
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { mode = entry },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (selected) WebPrimary else Color.Transparent
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            entry.icon, contentDescription = null,
-                            tint = if (selected) Color.White else WebMutedText,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            entry.label,
-                            style = TextStyle(
-                                fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                                color = if (selected) Color.White else WebMutedText
-                            )
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        when (mode) {
-            PayMode.MY_QR -> MyQrPane(viewModel)
-            PayMode.SCAN -> ScanPane(viewModel)
-            PayMode.NFC -> NfcPane()
-        }
-    }
-}
-
-// ------------------------------------------------------------------
-// Modo 1: mi QR + confirmación en vivo
-// ------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MyQrPane(viewModel: QrViewModel) {
-    val state by viewModel.uiState.collectAsState()
-    var selectedRoute by remember { mutableStateOf("Ruta General Celaya") }
-    var expanded by remember { mutableStateOf(false) }
-    var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var secondsLeft by remember { mutableIntStateOf(0) }
-
-    val payment = state.payment
-
-    LaunchedEffect(payment?.token) {
-        if (payment != null && payment.token.isNotBlank()) {
-            qrBitmap = withContext(Dispatchers.Default) {
-                try {
-                    QrUtils.generateQrCode(payment.token)
-                } catch (_: Exception) {
-                    null
-                }
-            }
-            secondsLeft = payment.expiresInSeconds
-            while (secondsLeft > 0) {
-                delay(1000)
-                secondsLeft--
-            }
-        } else {
-            qrBitmap = null
-        }
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, WebCardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
-            ) {
-                OutlinedTextField(
-                    value = selectedRoute,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Ruta del viaje", fontSize = 12.sp) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = WebPrimary,
-                        unfocusedBorderColor = WebCardBorder,
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
-                    )
-                )
-                ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Ruta General Celaya") },
-                        onClick = { selectedRoute = "Ruta General Celaya"; expanded = false }
-                    )
-                    CelayaRoutes.take(30).forEach { route ->
-                        DropdownMenuItem(
-                            text = { Text(route, fontSize = 13.sp) },
-                            onClick = { selectedRoute = route; expanded = false }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = { viewModel.generate(selectedRoute) },
-                enabled = !state.isLoading,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WebPrimary, contentColor = Color.White)
-            ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generando pasaje...", style = TextStyle(fontFamily = Lexend, fontWeight = FontWeight.Bold))
-                } else {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generar Código de Pago", style = TextStyle(fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold))
-                }
-            }
-
-            if (state.error != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = state.error ?: "",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebError, fontWeight = FontWeight.Medium)
-                )
-            }
-        }
-    }
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    if (payment != null) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, WebCardBorder),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, WebCardBorder),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.size(248.dp).padding(12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val bmp = qrBitmap
-                        if (bmp != null) {
-                            Image(
-                                bitmap = bmp.asImageBitmap(),
-                                contentDescription = "Código QR de pago",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
-                            )
-                        } else {
-                            CircularProgressIndicator(color = WebPrimary)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                QrInfoLine("Ruta", payment.route.ifBlank { selectedRoute })
-                QrInfoLine("Pasajero", payment.userFullName.ifBlank { "Usuario RutaPay" })
-                QrInfoLine("Saldo en tarjeta", "$${formatMoney(payment.cardBalance)} MXN")
-                QrInfoLine(
-                    "Vigencia",
-                    if (secondsLeft > 0) "Válido por ${secondsLeft / 60}:${"%02d".format(secondsLeft % 60)} min"
-                    else "Código vencido, genera uno nuevo"
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // ---- Confirmación en vivo por SignalR ----
-                state.liveUpdate?.let { update ->
-                    LiveResultCard(update = update, onDismiss = { viewModel.dismissLiveUpdate() })
-                } ?: run {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (secondsLeft > 0) Color(0xFFF0FDF4) else Color(0xFFFEF2F2),
-                        border = BorderStroke(1.dp, if (secondsLeft > 0) WebSuccess else WebError)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (secondsLeft > 0 && state.liveConnected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .background(WebSuccess, RoundedCornerShape(4.dp))
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Pasaje activo · esperando al validador…",
-                                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WebSuccessDark)
-                                )
-                            } else if (secondsLeft > 0) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = WebSuccessDark)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Conectando canal en vivo…",
-                                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WebSuccessDark)
-                                )
-                            } else {
-                                Text(
-                                    text = "Pasaje vencido",
-                                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WebError)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { viewModel.generate(selectedRoute) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = WebDark, contentColor = Color.White)
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Generar Nuevo Código", style = TextStyle(fontFamily = Lexend, fontWeight = FontWeight.SemiBold, fontSize = 13.sp))
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-    }
-}
-
-@Composable
-private fun LiveResultCard(update: PaymentStatusUpdate, onDismiss: () -> Unit) {
-    val isValid = update.status.equals("Valid", ignoreCase = true)
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isValid) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
-        ),
-        border = BorderStroke(1.dp, if (isValid) WebSuccess else WebError)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    if (isValid) Icons.Default.CheckCircle else Icons.Default.Error,
-                    contentDescription = null,
-                    tint = if (isValid) WebSuccessDark else WebError,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (isValid) "¡Pago aceptado!" else "Pago rechazado",
-                    style = TextStyle(
-                        fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                        color = if (isValid) WebSuccessDark else WebError
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            if (isValid) {
-                update.fareDeducted?.let { QrInfoLine("Tarifa cobrada", "$$${formatMoney(it)} MXN") }
-                update.remainingBalance?.let { QrInfoLine("Saldo restante", "$$${formatMoney(it)} MXN") }
-                update.reference?.let { QrInfoLine("Referencia", it) }
-                update.tariffType?.let { QrInfoLine("Tarifa", it) }
-                update.totalPoints?.let { QrInfoLine("Puntos totales", "$it") }
-            } else {
-                Text(
-                    text = update.message ?: "El validador rechazó el pago.",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebError)
-                )
-                update.requiredFare?.let { QrInfoLine("Tarifa requerida", "$$${formatMoney(it)} MXN") }
-                update.currentBalance?.let { QrInfoLine("Saldo actual", "$$${formatMoney(it)} MXN") }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            TextButton(onClick = onDismiss) {
-                Text("Descartar", style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WebMutedText))
-            }
-        }
-    }
-}
-
-// ------------------------------------------------------------------
-// Modo 2: escanear QR y validar contra la API
-// ------------------------------------------------------------------
-@Composable
-private fun ScanPane(viewModel: QrViewModel) {
-    val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var permissionDenied by remember { mutableStateOf(false) }
 
+    val user = state.user
+    val card = state.card
+
+    // Scanner Launcher
     val scannerLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
             viewModel.validateScanned(result.contents)
         }
     }
+
+    // Camera Permission Launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -472,296 +100,526 @@ private fun ScanPane(viewModel: QrViewModel) {
                 ScanOptions()
                     .setBeepEnabled(true)
                     .setOrientationLocked(false)
-                    .setPrompt("Apunta al código QR de pago")
+                    .setPrompt("Apunta al código QR del autobús")
             )
         }
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, WebCardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    fun launchCameraScanner() {
+        val granted = ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            permissionDenied = false
+            scannerLauncher.launch(
+                ScanOptions()
+                    .setBeepEnabled(true)
+                    .setOrientationLocked(false)
+                    .setPrompt("Apunta al código QR del autobús")
+            )
+        } else {
+            permissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    // Auto-launch camera when entering the screen
+    LaunchedEffect(Unit) {
+        viewModel.loadData()
+        launchCameraScanner()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WebDark)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(40.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Escanear código de pago",
-                style = TextStyle(fontFamily = Lexend, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WebDark)
-            )
-            Text(
-                text = "Lee el QR de otro pasajero o un código de prueba y valídalo contra la API.",
-                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebMutedText)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = {
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, android.Manifest.permission.CAMERA
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) {
-                        permissionDenied = false
-                        scannerLauncher.launch(
-                            ScanOptions()
-                                .setBeepEnabled(true)
-                                .setOrientationLocked(false)
-                                .setPrompt("Apunta al código QR de pago")
-                        )
-                    } else {
-                        permissionLauncher.launch(android.Manifest.permission.CAMERA)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WebPrimary, contentColor = Color.White)
+            // 1. TOP HEADER BAR
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Abrir Cámara", style = TextStyle(fontFamily = Lexend, fontWeight = FontWeight.Bold))
-            }
-            if (permissionDenied) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.width(40.dp))
+
                 Text(
-                    text = "Se necesita permiso de cámara para escanear. Actívalo en Ajustes.",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebError)
+                    text = "Escaneo del QR",
+                    style = TextStyle(
+                        fontFamily = Lexend,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                )
+
+                Surface(
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.12f),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.QrCode2,
+                            contentDescription = "Icono QR",
+                            tint = WebSecondary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 2. SUB-HEADER INSTRUCTION CARD
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                border = BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Escanea el código QR del Autobus para pagar:",
+                        style = TextStyle(
+                            fontFamily = Lexend,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFE2E8F0)
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 3. USER ACCOUNT & FARE SESSION BAR
+            val registeredName = remember(user) {
+                val full = user?.fullName?.trim().orEmpty()
+                if (full.isNotBlank()) full
+                else user?.userName?.ifBlank { "Usuario RutaPay" } ?: "Usuario RutaPay"
+            }
+            val accountType = user?.accountType
+            val isPreferential = isPreferentialAccount(accountType)
+            val fareCostText = if (isPreferential) "$6.50 MXN" else "$13.00 MXN"
+            val accountLabelText = accountLabel(accountType)
+            val availableBalance = card?.balance ?: user?.cardBalance?.toDoubleOrNull() ?: 0.0
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = WebPrimary),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(
+                                text = registeredName,
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$accountLabelText • Pasaje: $fareCostText",
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = Color.White.copy(alpha = 0.9f)
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "Saldo Disponible",
+                            style = TextStyle(
+                                fontFamily = Lexend,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        )
+                        Text(
+                            text = "$${formatMoney(availableBalance)} MXN",
+                            style = TextStyle(
+                                fontFamily = Lexend,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(36.dp))
+
+            // 4. QR VIEWPORT SQUARED BOX WITH CORNER MARKINGS
+            QrScanReticleBox(
+                modifier = Modifier
+                    .size(290.dp)
+                    .clickable { launchCameraScanner() },
+                borderColor = WebSecondary,
+                borderWidth = 3.5.dp,
+                cornerLength = 32.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.QrCodeScanner,
+                        contentDescription = null,
+                        tint = WebSecondary.copy(alpha = 0.4f),
+                        modifier = Modifier.size(80.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { launchCameraScanner() },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WebPrimary,
+                            contentColor = Color.White
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCodeScanner,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Toca aquí para escanear el código QR",
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (permissionDenied) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Se requiere permiso de cámara para escanear el código QR del autobús.",
+                    style = TextStyle(
+                        fontFamily = Lexend,
+                        fontSize = 12.sp,
+                        color = WebError
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 5. VALIDATION IN PROGRESS
+            if (state.isValidating) {
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, WebPrimary),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = WebSecondary,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Procesando pago con el validador...",
+                            style = TextStyle(
+                                fontFamily = Lexend,
+                                fontSize = 13.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
+                }
+            }
+
+            // 6. SCAN ERROR CARD
+            state.scanError?.let { errorMsg ->
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF450A0A)),
+                    border = BorderStroke(1.dp, WebError),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Error,
+                                contentDescription = null,
+                                tint = WebError,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Pago no procesado",
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = WebError
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = errorMsg,
+                            style = TextStyle(
+                                fontFamily = Lexend,
+                                fontSize = 13.sp,
+                                color = Color(0xFFFCA5A5)
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = {
+                                viewModel.clearScan()
+                                launchCameraScanner()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = WebError)
+                        ) {
+                            Text(
+                                text = "Reintentar Escaneo",
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 7. SCAN SUCCESS RESULT CARD
+            state.scanResult?.let { result ->
+                ScanResultCard(
+                    result = result,
+                    onClear = {
+                        viewModel.clearScan()
+                        launchCameraScanner()
+                    }
                 )
             }
         }
     }
+}
 
-    Spacer(modifier = Modifier.height(12.dp))
+@Composable
+private fun QrScanReticleBox(
+    modifier: Modifier = Modifier,
+    borderColor: Color = WebSecondary,
+    borderWidth: Dp = 3.5.dp,
+    cornerLength: Dp = 32.dp,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFF1E293B).copy(alpha = 0.85f), RoundedCornerShape(16.dp))
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = borderWidth.toPx()
+            val len = cornerLength.toPx()
+            val w = size.width
+            val h = size.height
 
-    if (state.isValidating) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, WebCardBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CircularProgressIndicator(color = WebPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("Validando código…", style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, color = WebMutedText))
-            }
+            // Top-left corner
+            drawLine(borderColor, Offset(0f, 0f), Offset(len, 0f), strokeWidth = stroke)
+            drawLine(borderColor, Offset(0f, 0f), Offset(0f, len), strokeWidth = stroke)
+
+            // Top-right corner
+            drawLine(borderColor, Offset(w - len, 0f), Offset(w, 0f), strokeWidth = stroke)
+            drawLine(borderColor, Offset(w, 0f), Offset(w, len), strokeWidth = stroke)
+
+            // Bottom-left corner
+            drawLine(borderColor, Offset(0f, h - len), Offset(0f, h), strokeWidth = stroke)
+            drawLine(borderColor, Offset(0f, h), Offset(len, h), strokeWidth = stroke)
+
+            // Bottom-right corner
+            drawLine(borderColor, Offset(w - len, h), Offset(w, h), strokeWidth = stroke)
+            drawLine(borderColor, Offset(w, h - len), Offset(w, h), strokeWidth = stroke)
         }
-    }
-
-    state.scanError?.let { error ->
-        Spacer(modifier = Modifier.height(0.dp))
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-            border = BorderStroke(1.dp, WebError),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = error,
-                modifier = Modifier.padding(14.dp),
-                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebError)
-            )
-        }
-    }
-
-    state.scanResult?.let { result ->
-        Spacer(modifier = Modifier.height(0.dp))
-        ScanResultCard(result = result, onClear = { viewModel.clearScan() })
+        content()
     }
 }
 
 @Composable
-private fun ScanResultCard(result: ValidatePaymentResultDto, onClear: () -> Unit) {
+private fun ScanResultCard(
+    result: ValidatePaymentResultDto,
+    onClear: () -> Unit
+) {
     val isValid = result.status.equals("Valid", ignoreCase = true)
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isValid) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
+            containerColor = if (isValid) Color(0xFF064E3B) else Color(0xFF450A0A)
         ),
         border = BorderStroke(1.dp, if (isValid) WebSuccess else WebError),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    if (isValid) Icons.Default.CheckCircle else Icons.Default.Error,
+                    imageVector = if (isValid) Icons.Default.CheckCircle else Icons.Default.Error,
                     contentDescription = null,
-                    tint = if (isValid) WebSuccessDark else WebError,
-                    modifier = Modifier.size(22.dp)
+                    tint = if (isValid) Color(0xFF34D399) else WebError,
+                    modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = if (isValid) "Código válido" else "Código inválido",
+                    text = if (isValid) "¡Pago Aceptado!" else "Pago Rechazado",
                     style = TextStyle(
-                        fontFamily = Lexend, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                        color = if (isValid) WebSuccessDark else WebError
+                        fontFamily = Lexend,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isValid) Color(0xFF34D399) else WebError
                     ),
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             if (isValid) {
-                result.passengerName?.let { QrInfoLine("Pasajero", it) }
-                result.fareDeducted?.let { QrInfoLine("Tarifa cobrada", "$$${formatMoney(it)} MXN") }
-                result.remainingBalance?.let { QrInfoLine("Saldo restante", "$$${formatMoney(it)} MXN") }
-                result.reference?.let { QrInfoLine("Referencia", it) }
-                result.route?.let { QrInfoLine("Ruta", it) }
+                result.passengerName?.let { QrDetailRow("Pasajero", it) }
+                result.fareDeducted?.let { QrDetailRow("Tarifa Cobrada", "$${formatMoney(it)} MXN") }
+                result.remainingBalance?.let { QrDetailRow("Saldo Restante", "$${formatMoney(it)} MXN") }
+                result.route?.let { QrDetailRow("Ruta", it) }
+                result.reference?.let { QrDetailRow("Referencia", it) }
+                result.pointsEarned?.let { QrDetailRow("Puntos Ganados", "+$it pts") }
             } else {
                 Text(
-                    text = result.message ?: "Token de pago inválido o expirado.",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebError)
+                    text = result.message ?: "El validador no pudo autorizar el pasaje.",
+                    style = TextStyle(
+                        fontFamily = Lexend,
+                        fontSize = 13.sp,
+                        color = Color(0xFFFCA5A5)
+                    )
                 )
+                result.requiredFare?.let { QrDetailRow("Tarifa Requerida", "$${formatMoney(it)} MXN") }
+                result.currentBalance?.let { QrDetailRow("Saldo Actual", "$${formatMoney(it)} MXN") }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             Button(
                 onClick = onClear,
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WebDark, contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isValid) WebSuccessDark else WebError,
+                    contentColor = Color.White
+                )
             ) {
-                Text("Escanear Otro", style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
-            }
-        }
-    }
-}
-
-// ------------------------------------------------------------------
-// Modo 3: NFC (si el dispositivo lo soporta)
-// ------------------------------------------------------------------
-@Composable
-private fun NfcPane() {
-    val context = LocalContext.current
-    val nfcAdapter = remember { NfcAdapter.getDefaultAdapter(context) }
-    var tagUid by remember { mutableStateOf<String?>(null) }
-    var listening by remember { mutableStateOf(false) }
-
-    if (nfcAdapter == null) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, WebCardBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(Icons.Default.Nfc, contentDescription = null, tint = WebMutedText, modifier = Modifier.size(40.dp))
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "NFC no disponible",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = WebDark)
+                    text = "Escanear Otro Código",
+                    style = TextStyle(
+                        fontFamily = Lexend,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 )
-                Text(
-                    text = "Este dispositivo no cuenta con hardware NFC. Usa Mi QR o Escanear.",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebMutedText)
-                )
-            }
-        }
-        return
-    }
-
-    // Lector NFC activo solo mientras este modo está visible.
-    DisposableEffect(Unit) {
-        val activity = context as? Activity
-        val mainHandler = Handler(Looper.getMainLooper())
-        try {
-            activity?.let {
-                nfcAdapter.enableReaderMode(
-                    it,
-                    { tag ->
-                        val uid = tag.id?.joinToString("") { b -> "%02X".format(b) } ?: ""
-                        mainHandler.post {
-                            tagUid = uid
-                            listening = false
-                        }
-                    },
-                    NfcAdapter.FLAG_READER_NFC_A or
-                        NfcAdapter.FLAG_READER_NFC_B or
-                        NfcAdapter.FLAG_READER_NFC_F or
-                        NfcAdapter.FLAG_READER_NFC_V or
-                        NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
-                    null
-                )
-                mainHandler.post { listening = true }
-            }
-        } catch (e: Exception) {
-            mainHandler.post { listening = false }
-        }
-        onDispose {
-            try {
-                activity?.let { nfcAdapter.disableReaderMode(it) }
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = WebDark),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Surface(shape = RoundedCornerShape(16.dp), color = WebPrimary.copy(alpha = 0.2f)) {
-                Icon(Icons.Default.Nfc, contentDescription = null, tint = WebPrimary, modifier = Modifier.padding(14.dp).size(36.dp))
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Pago con NFC",
-                style = TextStyle(fontFamily = Lexend, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            )
-            if (tagUid != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Tarjeta detectada",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color.White.copy(alpha = 0.75f))
-                )
-                Text(
-                    text = tagUid ?: "",
-                    style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WebPrimary)
-                )
-                Text(
-                    text = "El validador VAL-NFC-04 asocia este UID con tu tarjeta RutaPay.",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(onClick = { tagUid = null; listening = true }) {
-                    Text("Leer Otra", style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebPrimary))
-                }
-            } else {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (listening) "Acerca una tarjeta al lector…" else "Activando lector…",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f))
-                )
-                if (listening) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    CircularProgressIndicator(color = WebPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                }
             }
         }
     }
 }
 
 @Composable
-private fun QrInfoLine(label: String, value: String) {
+private fun QrDetailRow(label: String, value: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label + ":", style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebMutedText))
+        Text(
+            text = label,
+            style = TextStyle(
+                fontFamily = Lexend,
+                fontSize = 12.sp,
+                color = Color(0xFFCBD5E1)
+            )
+        )
         Text(
             text = value,
-            style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WebDark)
+            style = TextStyle(
+                fontFamily = Lexend,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         )
     }
 }

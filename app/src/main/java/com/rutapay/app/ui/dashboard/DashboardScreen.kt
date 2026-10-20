@@ -63,7 +63,7 @@ fun DashboardScreen(
         factory = CardViewModel.Factory(cardRepository, authRepository)
     )
     val qrViewModel: QrViewModel = viewModel(
-        factory = QrViewModel.Factory(paymentRepository, sessionManager)
+        factory = QrViewModel.Factory(paymentRepository, authRepository, cardRepository)
     )
     val rewardsViewModel: RewardsViewModel = viewModel(
         factory = RewardsViewModel.Factory(rewardsRepository, authRepository)
