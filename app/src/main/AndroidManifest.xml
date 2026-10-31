@@ -28,6 +28,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Escáner QR propio, siempre en vertical -->
+        <activity
+            android:name=".ui.dashboard.qr.QrScannerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.RutaPay.Scanner" />
     </application>
 
 </manifest>

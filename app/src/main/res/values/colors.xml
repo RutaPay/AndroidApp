@@ -7,4 +7,11 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Paleta RutaPay -->
+    <color name="rp_navy">#FF052B4A</color>
+    <color name="rp_primary">#FF449DD1</color>
+    <color name="rp_secondary">#FF78C0E0</color>
+    <color name="rp_muted">#FF64748B</color>
+    <color name="rp_black">#FF000000</color>
 </resources>

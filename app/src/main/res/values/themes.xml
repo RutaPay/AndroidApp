@@ -2,4 +2,14 @@
 <resources>
 
     <style name="Theme.RutaPay" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Escáner QR: pantalla oscura, sin ActionBar y con barras del sistema navy -->
+    <style name="Theme.RutaPay.Scanner" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/rp_black</item>
+        <item name="android:statusBarColor">@color/rp_navy</item>
+        <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
 </resources>
