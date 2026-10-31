@@ -14,11 +14,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -28,6 +31,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -82,6 +86,7 @@ import com.rutapay.app.ui.theme.WebMutedText
 import com.rutapay.app.ui.theme.WebPrimary
 import com.rutapay.app.ui.theme.WebRouteIda
 import com.rutapay.app.ui.theme.WebRouteRegreso
+import com.rutapay.app.ui.dashboard.navigation.BottomBarSpace
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -127,7 +132,9 @@ val CelayaRoutes = listOf(
 fun MapSection(
     primaryColor: Color,
     secondaryColor: Color,
-    tertiaryColor: Color
+    tertiaryColor: Color,
+    navBarVisible: Boolean = false,
+    onShowNavBar: () -> Unit = {}
 ) {
     var search by remember { mutableStateOf("") }
     var selectedRoute by remember { mutableStateOf<String?>(null) }
@@ -156,6 +163,7 @@ fun MapSection(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(12.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -191,7 +199,11 @@ fun MapSection(
             visible = selectedRoute != null,
             enter = expandVertically(),
             exit = shrinkVertically(),
-            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = 96.dp, start = 12.dp, end = 12.dp)
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(top = 96.dp, start = 12.dp, end = 12.dp)
         ) {
             selectedRoute?.let { route ->
                 Card(
@@ -237,7 +249,12 @@ fun MapSection(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(bottom = 120.dp, start = 16.dp, end = 16.dp)
+                .navigationBarsPadding()
+                .padding(
+                    bottom = (if (navBarVisible) BottomBarSpace + 84.dp else 84.dp),
+                    start = 16.dp,
+                    end = 16.dp
+                )
         ) {
             routeError?.let { message ->
                 Card(
@@ -271,8 +288,14 @@ fun MapSection(
         }
 
         // ---- Panel inferior de rutas ----
+        // Con la barra oculta (modo inmersivo) el panel baja hasta el borde;
+        // si se muestra la barra, sube para no quedar tapado por ella.
         Card(
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = if (navBarVisible) BottomBarSpace + 8.dp else 8.dp),
             shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
@@ -308,6 +331,26 @@ fun MapSection(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
                                 style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WebPrimary)
                             )
+                        }
+                        if (!navBarVisible) {
+                            // Acceso para recuperar la barra de navegación oculta
+                            // en el modo inmersivo del mapa.
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(WebPrimary.copy(alpha = 0.1f), CircleShape)
+                                    .clickable { onShowNavBar() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Menu,
+                                    contentDescription = "Mostrar menú",
+                                    tint = WebPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
                         }
                         Icon(
                             imageVector = if (panelExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,

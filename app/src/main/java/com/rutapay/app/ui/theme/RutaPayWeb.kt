@@ -60,6 +60,13 @@ object WebErrors {
 
     const val REDEEM_NO_CONNECTION = "No se pudo procesar el canje."
 
+    const val SESSION_EXPIRED = "Tu sesión expiró. Inicia sesión de nuevo."
+    const val PAYMENT_ERROR = "No se pudo procesar el pago."
+    const val PAYMENT_NO_CONNECTION = "No se pudo conectar con el servidor de pagos RutaPay."
+    const val PAYMENT_INVALID_CODE = "El código leído no es un pase de terminal válido."
+    const val NFC_EMPTY_TAG = "La etiqueta NFC no contiene un código de pago."
+    const val NFC_DISABLED = "El NFC está desactivado. Actívalo en los ajustes del dispositivo."
+
     const val LOGOUT_DONE = "Has cerrado sesión exitosamente."
     const val LOGOUT_NO_CONNECTION = "No se pudo conectar con el servidor."
 

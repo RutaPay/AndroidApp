@@ -117,16 +117,20 @@ class AuthRepository(
     }
 
     /**
-     * Revalida la sesión contra la API. La cookie JWT HttpOnly vive solo en
-     * memoria (Ktor), así que al reiniciar la app el flag local puede decir
-     * "logueado" cuando la sesión real ya murió.
+     * Revalida la sesión contra la API. La cookie JWT ahora se persiste en
+     * disco, pero puede haber expirado (7 días) o haber sido revocada, así que
+     * el flag local nunca es suficiente por sí solo.
      */
     suspend fun validateSession(): Boolean {
-        return try {
-            getCurrentUser().isSuccess
-        } catch (_: Exception) {
-            false
-        }
+        if (apiClient.authToken.isNullOrBlank()) return false
+
+        val result = getCurrentUser()
+        if (result.isSuccess) return true
+
+        // Un 401 hace que ApiClient borre la cookie. Si la cookie sigue ahí,
+        // el fallo fue de red/servidor: conservamos la sesión y el dashboard
+        // mostrará sus propios errores con reintento.
+        return !apiClient.authToken.isNullOrBlank()
     }
 
     suspend fun logout(): Result<Unit> {
@@ -136,9 +140,13 @@ class AuthRepository(
                 apiClient.client.post("$base/api/account/logout")
             } catch (_: Exception) {
             }
+            // Borra también la cookie persistida: si no, al reabrir la app la
+            // sesión seguiría siendo válida aunque el usuario haya salido.
+            apiClient.cookieStorage.clear()
             sessionManager.clearSession()
             Result.success(Unit)
         } catch (e: Exception) {
+            apiClient.cookieStorage.clear()
             sessionManager.clearSession()
             Result.success(Unit)
         }

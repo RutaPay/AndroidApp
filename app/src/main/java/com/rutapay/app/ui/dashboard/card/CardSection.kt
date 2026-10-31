@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -64,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.rutapay.app.data.model.TransactionDto
+import com.rutapay.app.ui.dashboard.navigation.BottomBarHeight
 import com.rutapay.app.ui.theme.Lexend
 import com.rutapay.app.ui.theme.WebBackground
 import com.rutapay.app.ui.theme.WebCardBorder
@@ -126,6 +128,10 @@ fun CardSection(
             .background(WebBackground)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
+            // El contenido pasa por detrás de la barra blanca; este espacio
+            // evita que la última tarjeta quede oculta por ella.
+            .navigationBarsPadding()
+            .padding(bottom = BottomBarHeight)
     ) {
         // ---- Header: Mi Tarjeta Digital + estado ----
         Card(

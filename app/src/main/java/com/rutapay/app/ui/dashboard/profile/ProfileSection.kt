@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.rutapay.app.data.local.SessionManager
 import com.rutapay.app.data.ConfigManager
+import com.rutapay.app.ui.dashboard.navigation.BottomBarHeight
 import com.rutapay.app.ui.theme.AccountTiers
 import com.rutapay.app.ui.theme.Lexend
 import com.rutapay.app.ui.theme.WebBackground
@@ -90,7 +92,15 @@ fun ProfileSection(
 
     val user = state.user
     val tier = AccountTiers[tierKeyFor(user?.accountType)] ?: AccountTiers["base"]!!
-    val displayName = user?.userName?.ifBlank { null } ?: "Usuario"
+    // La API devuelve en `userName` el Id del token (GUID), así que el nombre
+    // visible se arma con FullName + LastNames, igual que la web.
+    val displayName = listOfNotNull(
+        user?.fullName?.trim()?.ifBlank { null },
+        user?.lastNames?.trim()?.ifBlank { null }
+    ).joinToString(" ").ifBlank {
+        user?.userName?.ifBlank { null } ?: "Usuario"
+    }
+    val isCardBlocked = (user?.cardStatus ?: "Active").equals("Blocked", ignoreCase = true)
     val initial = displayName.firstOrNull()?.uppercase() ?: "U"
 
     Column(
@@ -98,7 +108,11 @@ fun ProfileSection(
             .fillMaxSize()
             .background(WebBackground)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(16.dp)
+            // El contenido pasa por detrás de la barra blanca; este espacio
+            // evita que la última tarjeta quede oculta por ella.
+            .navigationBarsPadding()
+            .padding(bottom = BottomBarHeight),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Card(
@@ -198,12 +212,17 @@ fun ProfileSection(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "Miembro desde: ${user?.createdOn?.ifBlank { null } ?: "09/09/2026"}",
+                                text = "Miembro desde: ${user?.createdOn?.ifBlank { null } ?: "—"}",
                                 style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = Color(0xFF4B5563))
                             )
                             Text(
-                                text = "Estado: ● Activa",
-                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WebSuccess)
+                                text = if (isCardBlocked) "Estado: ● Bloqueada" else "Estado: ● Activa",
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isCardBlocked) WebError else WebSuccess
+                                )
                             )
                         }
                     }

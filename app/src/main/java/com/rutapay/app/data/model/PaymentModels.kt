@@ -3,36 +3,21 @@ package com.rutapay.app.data.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// La API serializa en camelCase (p. ej. "transactionId", "fareDeducted").
+// La API serializa en camelCase (p. ej. "terminalToken", "fareDeducted").
+// Flujo actual: la terminal emite un token de sesión (QR/NFC) y la app del
+// pasajero lo autoriza con su propia sesión.
 
 @Serializable
-data class GeneratePaymentRequestDto(
-    @SerialName("route") val route: String? = null,
-    @SerialName("busUnitId") val busUnitId: String? = null
+data class AuthorizePaymentRequestDto(
+    @SerialName("terminalToken") val terminalToken: String,
+    @SerialName("paymentMethod") val paymentMethod: String = "QR_Terminal"
 )
 
 @Serializable
-data class PaymentQrTokenResponseDto(
-    @SerialName("transactionId") val transactionId: String = "",
-    @SerialName("token") val token: String = "",
-    @SerialName("expiresInSeconds") val expiresInSeconds: Int = 300,
-    @SerialName("route") val route: String = "",
-    @SerialName("userFullName") val userFullName: String = "",
-    @SerialName("cardBalance") val cardBalance: Double = 0.0
-)
-
-@Serializable
-data class ValidatePaymentRequestDto(
-    @SerialName("token") val token: String,
-    @SerialName("route") val route: String? = null,
-    @SerialName("busUnitId") val busUnitId: String? = null,
-    @SerialName("srGroupId") val srGroupId: String? = null
-)
-
-@Serializable
-data class ValidatePaymentResultDto(
+data class AuthorizePaymentResultDto(
     @SerialName("status") val status: String = "",
     @SerialName("message") val message: String? = null,
+    @SerialName("alreadyProcessed") val alreadyProcessed: Boolean = false,
     @SerialName("transactionId") val transactionId: String? = null,
     @SerialName("reference") val reference: String? = null,
     @SerialName("passengerName") val passengerName: String? = null,
@@ -43,6 +28,8 @@ data class ValidatePaymentResultDto(
     @SerialName("totalPoints") val totalPoints: Int? = null,
     @SerialName("route") val route: String? = null,
     @SerialName("busUnit") val busUnit: String? = null,
+    @SerialName("terminalCode") val terminalCode: String? = null,
     @SerialName("requiredFare") val requiredFare: Double? = null,
-    @SerialName("currentBalance") val currentBalance: Double? = null
+    @SerialName("currentBalance") val currentBalance: Double? = null,
+    @SerialName("timestamp") val timestamp: String? = null
 )

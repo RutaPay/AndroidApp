@@ -10,9 +10,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -30,6 +32,8 @@ import com.rutapay.app.data.repository.RewardsRepository
 import com.rutapay.app.ui.auth.AuthViewModel
 import com.rutapay.app.ui.navigation.NavigationDestinations
 import com.rutapay.app.ui.theme.RutaPayTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -51,21 +55,65 @@ class MainActivity : ComponentActivity() {
                 val paymentRepository = remember(apiClient) { PaymentRepository(apiClient) }
                 val rewardsRepository = remember(apiClient) { RewardsRepository(apiClient) }
 
-                val isLoggedIn by sessionManager.isLoggedIn.collectAsState(initial = false)
+                // null = DataStore todavía no ha respondido.
+                val isLoggedIn by sessionManager.isLoggedIn
+                    .map { it as Boolean? }
+                    .collectAsState(initial = null)
 
-                // Sesión persistente: la cookie JWT vive en memoria y se pierde al
-                // reiniciar la app. Se revalida contra GET /api/account mientras
-                // corre el splash; si falla, se va a login aunque el flag local
-                // diga lo contrario.
-                val sessionValid by produceState<Boolean?>(initialValue = null, isLoggedIn) {
-                    value = if (!isLoggedIn) false else authRepository.validateSession()
+                // La cookie JWT se persiste en disco, así que revalidarla en cada
+                // arranque basta para conservar la sesión (o detectar que expiró).
+                val sessionValidState = produceState<Boolean?>(initialValue = null, isLoggedIn) {
+                    value = when (isLoggedIn) {
+                        true -> authRepository.validateSession()
+                        false -> false
+                        null -> null
+                    }
                 }
+                val sessionValid by sessionValidState
 
                 val backStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = backStackEntry?.destination?.route
+
+                // Tiempo mínimo del splash (animación), independiente de la red.
+                var splashMinTimeDone by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    delay(2600)
+                    splashMinTimeDone = true
+                }
+
+                // Navega cuando el splash ya cumplió su tiempo Y la sesión fue
+                // revalidada. Antes se usaba el valor inicial (null) del primer
+                // callback y siempre mandaba a login.
+                LaunchedEffect(splashMinTimeDone, sessionValid, currentRoute) {
+                    if (!splashMinTimeDone || currentRoute != NavigationDestinations.SPLASH) return@LaunchedEffect
+                    val valid = sessionValid ?: return@LaunchedEffect
+                    navController.navigate(
+                        if (valid) NavigationDestinations.DASHBOARD else NavigationDestinations.LOGIN
+                    ) {
+                        popUpTo(NavigationDestinations.SPLASH) { inclusive = true }
+                    }
+                }
+
+                // Red de seguridad: si la revalidación tarda demasiado, no dejar
+                // al usuario atrapado en el splash.
+                LaunchedEffect(splashMinTimeDone) {
+                    if (!splashMinTimeDone) return@LaunchedEffect
+                    delay(8000)
+                    if (sessionValidState.value == null &&
+                        navController.currentDestination?.route == NavigationDestinations.SPLASH
+                    ) {
+                        navController.navigate(
+                            if (isLoggedIn == true) NavigationDestinations.DASHBOARD else NavigationDestinations.LOGIN
+                        ) {
+                            popUpTo(NavigationDestinations.SPLASH) { inclusive = true }
+                        }
+                    }
+                }
+
                 // Guardián global de 401: si cualquier llamada limpia la sesión
                 // (ver ApiClient), y estamos en el dashboard, volver a login.
-                LaunchedEffect(isLoggedIn, backStackEntry?.destination?.route) {
-                    if (!isLoggedIn && backStackEntry?.destination?.route == NavigationDestinations.DASHBOARD) {
+                LaunchedEffect(isLoggedIn, currentRoute) {
+                    if (isLoggedIn == false && currentRoute == NavigationDestinations.DASHBOARD) {
                         navController.navigate(NavigationDestinations.LOGIN) {
                             popUpTo(NavigationDestinations.DASHBOARD) { inclusive = true }
                         }
@@ -73,18 +121,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    // El dashboard dibuja su propio contenido de borde a borde
+                    // (mapa bajo la status bar y la barra de navegación). Las
+                    // demás pantallas siguen usando los insets del Scaffold.
+                    val isDashboard = currentRoute == NavigationDestinations.DASHBOARD
                     NavHost(
                         navController = navController,
                         startDestination = NavigationDestinations.SPLASH,
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = if (isDashboard) Modifier.fillMaxSize() else Modifier.padding(innerPadding)
                     ) {
                         composable(NavigationDestinations.SPLASH) {
-                            com.rutapay.app.ui.splash.SplashScreen(onTimeOut = {
-                                val destination = if (sessionValid == true) NavigationDestinations.DASHBOARD else NavigationDestinations.LOGIN
-                                navController.navigate(destination) {
-                                    popUpTo(NavigationDestinations.SPLASH) { inclusive = true }
-                                }
-                            })
+                            com.rutapay.app.ui.splash.SplashScreen()
                         }
                         composable(NavigationDestinations.LOGIN) {
                             val authViewModel: AuthViewModel = viewModel(
@@ -109,8 +156,11 @@ class MainActivity : ComponentActivity() {
                             com.rutapay.app.ui.auth.RegisterScreen(
                                 viewModel = authViewModel,
                                 onRegisterSuccess = {
-                                    navController.navigate(NavigationDestinations.DASHBOARD) {
+                                    // La API no inicia sesión al registrar (igual que
+                                    // la web): se vuelve a login para autenticarse.
+                                    navController.navigate(NavigationDestinations.LOGIN) {
                                         popUpTo(NavigationDestinations.REGISTER) { inclusive = true }
+                                        launchSingleTop = true
                                     }
                                 },
                                 onNavigateToLogin = {

@@ -1,13 +1,14 @@
 package com.rutapay.app.data.remote
 
 import android.util.Log
+import com.rutapay.app.data.local.PersistentCookieStorage
 import com.rutapay.app.data.local.SessionManager
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpResponseValidator
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.cookies.HttpCookies
-import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
@@ -25,6 +26,12 @@ import kotlinx.serialization.json.Json
 class ApiClient(
     private val sessionManager: SessionManager
 ) {
+    /**
+     * La API autentica con una cookie JWT HttpOnly de 7 días. Se persiste en
+     * disco para que la sesión sobreviva al cierre de la app.
+     */
+    val cookieStorage = PersistentCookieStorage(sessionManager.appContext)
+
     val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -41,7 +48,12 @@ class ApiClient(
             json(json)
         }
         install(HttpCookies) {
-            storage = AcceptAllCookiesStorage()
+            storage = cookieStorage
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 25_000
+            connectTimeoutMillis = 15_000
+            socketTimeoutMillis = 25_000
         }
         install(Logging) {
             logger = object : Logger {
@@ -58,9 +70,10 @@ class ApiClient(
             validateResponse { response ->
                 if (response.status.value == 401) {
                     Log.w("ApiClient", "401 Unauthorized: ${response.call.request.url} — limpiando sesión")
-                    // Guardián global: cualquier 401 invalida la sesión local y
-                    // MainActivity redirige a login si está en el dashboard.
+                    // Guardián global: cualquier 401 invalida la sesión local
+                    // (flag + cookie persistida) y MainActivity redirige a login.
                     try {
+                        cookieStorage.clear()
                         sessionManager.clearSession()
                     } catch (e: Exception) {
                         Log.e("ApiClient", "No se pudo limpiar la sesión", e)
@@ -74,6 +87,10 @@ class ApiClient(
         val url = sessionManager.apiUrl.first().trim().trimEnd('/')
         return url.ifBlank { SessionManager.DEFAULT_API_URL }
     }
+
+    /** JWT actual (cookie `token`), o null si no hay sesión. */
+    val authToken: String?
+        get() = cookieStorage.token
 
     /**
      * Lee el body como texto, lo registra en LogCat (para diagnosticar

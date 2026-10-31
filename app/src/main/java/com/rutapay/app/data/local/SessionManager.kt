@@ -10,6 +10,10 @@ import kotlinx.coroutines.flow.map
 
 class SessionManager(private val context: Context) {
 
+    /** Contexto de aplicación para dependencias que lo necesiten (p. ej. cookies). */
+    val appContext: Context
+        get() = context.applicationContext
+
     companion object {
         val API_URL = stringPreferencesKey("api_url")
         val SIGNALR_URL = stringPreferencesKey("signalr_url")

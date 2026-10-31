@@ -15,8 +15,9 @@ class ConfigManager(private val context: Context) {
         val API_URL = stringPreferencesKey("api_url")
         val SIGNALR_URL = stringPreferencesKey("signalr_url")
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
-        const val DEFAULT_API_URL = "https://api.rutapay.dev"
-        const val DEFAULT_SIGNALR_URL = "https://api.rutapay.dev/hub"
+        // Deben coincidir con SessionManager: ambos usan el mismo DataStore.
+        const val DEFAULT_API_URL = "https://rutapayapi.runasp.net"
+        const val DEFAULT_SIGNALR_URL = "https://rutapayapi.runasp.net/Payments/paymentHub"
     }
 
     val apiUrl: Flow<String> = context.dataStore.data.map { preferences ->

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.rutapay.app.data.model.RewardDto
+import com.rutapay.app.ui.dashboard.navigation.BottomBarHeight
 import com.rutapay.app.ui.theme.Lexend
 import com.rutapay.app.ui.theme.WebBackground
 import com.rutapay.app.ui.theme.WebCardBorder
@@ -83,6 +85,10 @@ fun RewardsSection(
             .background(WebBackground)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
+            // El contenido pasa por detrás de la barra blanca; este espacio
+            // evita que la última tarjeta quede oculta por ella.
+            .navigationBarsPadding()
+            .padding(bottom = BottomBarHeight)
     ) {
         // ---- Título ----
         Card(
@@ -116,11 +122,11 @@ fun RewardsSection(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "Hola, ${user?.userName?.ifBlank { null } ?: "Pasajero"}!",
+                    text = "Hola, ${user?.fullName?.ifBlank { null } ?: "Pasajero"}!",
                     style = TextStyle(fontFamily = Lexend, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = WebDark)
                 )
                 Text(
-                    text = "Miembro RutaPay desde: ${user?.createdOn?.ifBlank { null } ?: "2026"}",
+                    text = "Miembro RutaPay desde: ${user?.createdOn?.ifBlank { null } ?: "—"}",
                     style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, color = WebMutedText)
                 )
                 Spacer(modifier = Modifier.height(12.dp))

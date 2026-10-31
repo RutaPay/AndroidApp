@@ -25,17 +25,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.rutapay.app.R
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun SplashScreen(onTimeOut: () -> Unit) {
+fun SplashScreen() {
     // Animación de entrada para el bus y el logo
     val busAlpha = remember { Animatable(0f) }
     val busScale = remember { Animatable(0.8f) }
 
     LaunchedEffect(Unit) {
-        // Aparición animada
+        // Aparición animada. La navegación la controla MainActivity cuando
+        // terminan el tiempo mínimo del splash y la revalidación de sesión.
         launch {
             busAlpha.animateTo(1f, animationSpec = tween(1000))
         }
@@ -45,10 +45,6 @@ fun SplashScreen(onTimeOut: () -> Unit) {
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
             )
         }
-
-        // El tiempo total del Splash
-        delay(3000)
-        onTimeOut()
     }
 
     Box(
