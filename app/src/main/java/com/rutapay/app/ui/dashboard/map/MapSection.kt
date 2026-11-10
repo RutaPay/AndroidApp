@@ -5,7 +5,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,25 +20,20 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,7 +50,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapbox.geojson.Feature
@@ -79,6 +72,7 @@ import com.mapbox.maps.extension.compose.style.sources.GeoJSONData
 import com.mapbox.maps.extension.compose.style.sources.generated.GeoJsonSourceState
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.plugin.animation.camera
+import com.rutapay.app.ui.dashboard.navigation.BottomBarSpace
 import com.rutapay.app.ui.theme.Lexend
 import com.rutapay.app.ui.theme.WebCardBorder
 import com.rutapay.app.ui.theme.WebDark
@@ -86,7 +80,6 @@ import com.rutapay.app.ui.theme.WebMutedText
 import com.rutapay.app.ui.theme.WebPrimary
 import com.rutapay.app.ui.theme.WebRouteIda
 import com.rutapay.app.ui.theme.WebRouteRegreso
-import com.rutapay.app.ui.dashboard.navigation.BottomBarSpace
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -119,29 +112,20 @@ val CelayaRoutes = listOf(
 )
 
 /**
- * Vista Mapa a pantalla completa (estilo app móvil, estética RutaPayWeb).
- *
- * Solo se muestran el mapa, la barra de búsqueda flotante y la navegación
- * inferior. Las rutas viven en un panel inferior colapsable.
- *
- * El mapa (Mapbox) carga la ruta seleccionada igual que la web: GeoJSON por
- * routeId desde GitHub, IDA sólida #449DD1 y REGRESO discontinuo #052B4A,
- * con la cámara encuadrada a la ruta.
+ * Vista Mapa a pantalla completa con selector de rutas superior unificado.
  */
 @Composable
 fun MapSection(
     primaryColor: Color,
     secondaryColor: Color,
-    tertiaryColor: Color,
-    navBarVisible: Boolean = false,
-    onShowNavBar: () -> Unit = {}
+    tertiaryColor: Color
 ) {
     var search by remember { mutableStateOf("") }
     var selectedRoute by remember { mutableStateOf<String?>(null) }
     var loadingRoute by remember { mutableStateOf(false) }
     var routeError by remember { mutableStateOf<String?>(null) }
     var reloadTick by remember { mutableIntStateOf(0) }
-    var panelExpanded by remember { mutableStateOf(false) }
+    var dropdownExpanded by remember { mutableStateOf(false) }
 
     val filtered = remember(search) {
         if (search.isBlank()) CelayaRoutes
@@ -149,7 +133,7 @@ fun MapSection(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // ---- Mapa a pantalla completa (carga la ruta como la web) ----
+        // ---- Mapa a pantalla completa ----
         FullScreenMap(
             selectedRoute = selectedRoute,
             reloadTick = reloadTick,
@@ -158,56 +142,201 @@ fun MapSection(
             modifier = Modifier.fillMaxSize()
         )
 
-        // ---- Buscador flotante ----
+        // ---- Barra de búsqueda y menú desplegable superior unificado ----
         Card(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(12.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                placeholder = { Text("Busca una ruta...", color = Color(0xFFC3C3C3), fontSize = 14.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = WebMutedText) },
-                trailingIcon = {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = WebMutedText,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    BasicTextField(
+                        value = search,
+                        onValueChange = {
+                            search = it
+                            if (it.isNotBlank()) {
+                                dropdownExpanded = true
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 12.dp),
+                        textStyle = TextStyle(
+                            fontFamily = Lexend,
+                            fontSize = 14.sp,
+                            color = WebDark
+                        ),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (search.isEmpty()) {
+                                    Text(
+                                        text = "Busca una ruta...",
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            color = Color(0xFFC3C3C3),
+                                            fontSize = 14.sp
+                                        )
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
                     if (search.isNotBlank()) {
-                        IconButton(onClick = { search = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Limpiar", tint = WebMutedText)
+                        IconButton(
+                            onClick = { search = "" },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Limpiar",
+                                tint = WebMutedText,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    // Icono del camión + Número total de rutas + Semi-flecha desplegable
+                    Row(
+                        modifier = Modifier
+                            .clickable { dropdownExpanded = !dropdownExpanded }
+                            .padding(start = 4.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DirectionsBus,
+                            contentDescription = null,
+                            tint = WebPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = WebPrimary.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "${filtered.size}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = WebPrimary
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = if (dropdownExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (dropdownExpanded) "Cerrar menú" else "Abrir menú",
+                            tint = WebMutedText,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                // Lista desplegable de rutas (de arriba a abajo)
+                AnimatedVisibility(
+                    visible = dropdownExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    Column {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(WebCardBorder.copy(alpha = 0.5f))
+                        )
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 380.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            items(filtered) { route ->
+                                val isSelected = route == selectedRoute
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedRoute = route
+                                            dropdownExpanded = false // Cierra la lista en cuanto se selecciona la ruta
+                                        }
+                                        .background(
+                                            if (isSelected) WebPrimary.copy(alpha = 0.08f) else Color.Transparent,
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) WebPrimary else Color(0xFFF3F4F6)
+                                    ) {
+                                        Text(
+                                            text = route.substringBefore(" - "),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            style = TextStyle(
+                                                fontFamily = Lexend,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color.White else WebDark
+                                            )
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = route.substringAfter(" - ", route),
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = if (isSelected) WebPrimary else WebDark
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = WebPrimary,
-                    unfocusedBorderColor = WebCardBorder,
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White
-                )
-            )
+                }
+            }
         }
 
-        // ---- Ruta seleccionada (flotante bajo el buscador) ----
+        // ---- Ruta seleccionada (flotante bajo el buscador cuando el desplegable está cerrado) ----
         AnimatedVisibility(
-            visible = selectedRoute != null,
+            visible = selectedRoute != null && !dropdownExpanded,
             enter = expandVertically(),
             exit = shrinkVertically(),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(top = 96.dp, start = 12.dp, end = 12.dp)
+                .padding(top = 80.dp, start = 12.dp, end = 12.dp)
         ) {
             selectedRoute?.let { route ->
                 Card(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                 ) {
@@ -241,7 +370,7 @@ fun MapSection(
             }
         }
 
-        // ---- Error de carga (se auto-oculta, no interfiere con lista ni indicador) ----
+        // ---- Error de carga ----
         AnimatedVisibility(
             visible = routeError != null,
             enter = expandVertically(),
@@ -251,7 +380,7 @@ fun MapSection(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(
-                    bottom = (if (navBarVisible) BottomBarSpace + 84.dp else 84.dp),
+                    bottom = BottomBarSpace + 16.dp,
                     start = 16.dp,
                     end = 16.dp
                 )
@@ -286,136 +415,6 @@ fun MapSection(
                 }
             }
         }
-
-        // ---- Panel inferior de rutas ----
-        // Con la barra oculta (modo inmersivo) el panel baja hasta el borde;
-        // si se muestra la barra, sube para no quedar tapado por ella.
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = if (navBarVisible) BottomBarSpace + 8.dp else 8.dp),
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { panelExpanded = !panelExpanded }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp, 4.dp)
-                            .background(WebCardBorder, RoundedCornerShape(2.dp))
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.DirectionsBus, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Rutas",
-                            style = TextStyle(fontFamily = Lexend, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WebDark),
-                            modifier = Modifier.weight(1f)
-                        )
-                        Surface(shape = RoundedCornerShape(12.dp), color = WebPrimary.copy(alpha = 0.1f)) {
-                            Text(
-                                text = "${filtered.size}",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
-                                style = TextStyle(fontFamily = Lexend, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WebPrimary)
-                            )
-                        }
-                        if (!navBarVisible) {
-                            // Acceso para recuperar la barra de navegación oculta
-                            // en el modo inmersivo del mapa.
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .background(WebPrimary.copy(alpha = 0.1f), CircleShape)
-                                    .clickable { onShowNavBar() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Menu,
-                                    contentDescription = "Mostrar menú",
-                                    tint = WebPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                        }
-                        Icon(
-                            imageVector = if (panelExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                            contentDescription = if (panelExpanded) "Contraer" else "Expandir",
-                            tint = WebMutedText
-                        )
-                    }
-                }
-
-                // Lista expandible
-                AnimatedVisibility(
-                    visible = panelExpanded,
-                    enter = expandVertically(),
-                    exit = shrinkVertically()
-                ) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 320.dp)
-                            .padding(horizontal = 8.dp)
-                            .padding(bottom = 12.dp)
-                    ) {
-                        items(filtered) { route ->
-                            val isSelected = route == selectedRoute
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { selectedRoute = route }
-                                    .background(
-                                        if (isSelected) WebPrimary.copy(alpha = 0.08f) else Color.Transparent,
-                                        RoundedCornerShape(10.dp)
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) WebPrimary else Color(0xFFF3F4F6)
-                                ) {
-                                    Text(
-                                        text = route.substringBefore(" - "),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        style = TextStyle(
-                                            fontFamily = Lexend, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else WebDark
-                                        )
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = route.substringAfter(" - ", route),
-                                    style = TextStyle(
-                                        fontFamily = Lexend,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = if (isSelected) WebPrimary else WebDark
-                                    ),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -430,7 +429,6 @@ private fun FullScreenMap(
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current.density
 
-    // Descarga del GeoJSON igual que la web (MapView.vue: loadRoute).
     var idaFeatures by remember { mutableStateOf<List<Feature>>(emptyList()) }
     var regresoFeatures by remember { mutableStateOf<List<Feature>>(emptyList()) }
 
@@ -481,17 +479,17 @@ private fun FullScreenMap(
     val mapState = rememberMapState {
         coroutineScope.launch {
             mapLoadingErrorEvents.onEach {
-                // Error occurred when loading the map, try to handle it gracefully here
+                // Error occurred when loading the map
             }
         }
         coroutineScope.launch {
             styleLoadedEvents.first().let {
-                // Map is setup and style has loaded, Now you can add data or make other map adjustments.
+                // Style loaded
             }
         }
     }
     MapboxMap(
-        Modifier.fillMaxSize(),
+        modifier.fillMaxSize(),
         mapState = mapState,
         mapViewportState = rememberMapViewportState {
             setCameraOptions {
@@ -502,10 +500,10 @@ private fun FullScreenMap(
             }
         },
         logo = {
-            Logo(Modifier.padding(bottom = 40.dp))
+            Logo(Modifier.padding(bottom = BottomBarSpace + 16.dp))
         },
         attribution = {
-            Attribution(Modifier.padding(bottom = 40.dp))
+            Attribution(Modifier.padding(bottom = BottomBarSpace + 16.dp))
         }
     ) {
         if (idaFeatures.isNotEmpty()) {
@@ -540,7 +538,7 @@ private fun FullScreenMap(
                     EdgeInsets(
                         (120 * density).toDouble(),
                         (16 * density).toDouble(),
-                        (190 * density).toDouble(),
+                        ((BottomBarSpace.value + 40) * density).toDouble(),
                         (16 * density).toDouble()
                     ),
                     null,

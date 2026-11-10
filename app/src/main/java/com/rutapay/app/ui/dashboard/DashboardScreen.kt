@@ -1,37 +1,23 @@
 package com.rutapay.app.ui.dashboard
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rutapay.app.data.ConfigManager
 import com.rutapay.app.data.local.SessionManager
@@ -54,9 +40,6 @@ import com.rutapay.app.ui.theme.WebBackground
 import com.rutapay.app.ui.theme.WebDark
 import com.rutapay.app.ui.theme.WebPrimary
 import com.rutapay.app.ui.theme.WebSecondary
-import kotlinx.coroutines.delay
-
-private const val NAV_BAR_AUTOHIDE_MS = 6000L
 
 @Composable
 fun DashboardScreen(
@@ -89,46 +72,7 @@ fun DashboardScreen(
         factory = ProfileViewModel.Factory(authRepository)
     )
 
-    val isMap = selectedTab == 0
-
-    // En el mapa la barra de navegación arranca oculta. El botón "menú" del
-    // panel de rutas la muestra otra vez y se auto-oculta a los segundos.
-    var navBarVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == 0) navBarVisible = false
-    }
-    LaunchedEffect(navBarVisible, selectedTab) {
-        if (navBarVisible && selectedTab == 0) {
-            delay(NAV_BAR_AUTOHIDE_MS)
-            navBarVisible = false
-        }
-    }
-
-    // Modo inmersivo: sólo en el mapa se ocultan las barras del sistema.
-    val immersive = isMap && !navBarVisible
-    val context = LocalContext.current
-    val view = LocalView.current
-    DisposableEffect(immersive) {
-        val window = context.findActivity()?.window
-        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
-        if (controller != null) {
-            if (immersive) {
-                controller.systemBarsBehavior =
-                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                controller.hide(WindowInsetsCompat.Type.systemBars())
-            } else {
-                controller.show(WindowInsetsCompat.Type.systemBars())
-            }
-        }
-        onDispose {
-            controller?.show(WindowInsetsCompat.Type.systemBars())
-        }
-    }
-
-    // Sin Scaffold: el contenido ocupa toda la pantalla (el mapa llega hasta
-    // las barras del sistema) y la barra inferior se dibuja encima. Antes el
-    // Scaffold reservaba el alto de la barra y de la status bar, y ese hueco
-    // se veía como franjas grises alrededor del contenido.
+    // Sin Scaffold: el contenido ocupa toda la pantalla y la barra inferior se dibuja encima.
     Box(modifier = Modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = selectedTab,
@@ -143,9 +87,7 @@ fun DashboardScreen(
                 0 -> MapSection(
                     primaryColor = primaryColor,
                     secondaryColor = secondaryColor,
-                    tertiaryColor = tertiaryColor,
-                    navBarVisible = navBarVisible,
-                    onShowNavBar = { navBarVisible = true }
+                    tertiaryColor = tertiaryColor
                 )
                 else -> InsetTabContent {
                     when (tab) {
@@ -158,20 +100,15 @@ fun DashboardScreen(
             }
         }
 
-        AnimatedVisibility(
-            visible = !isMap || navBarVisible,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(tween(200)),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(150)),
+        // La barra inferior de navegación está siempre visible y activa
+        ModernAnimatedBottomBar(
+            selectedTab = selectedTab,
+            onTabSelected = { selectedTab = it },
+            primaryColor = primaryColor,
+            secondaryColor = secondaryColor,
+            tertiaryColor = tertiaryColor,
             modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            ModernAnimatedBottomBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
-                primaryColor = primaryColor,
-                secondaryColor = secondaryColor,
-                tertiaryColor = tertiaryColor
-            )
-        }
+        )
     }
 }
 
@@ -191,13 +128,4 @@ private fun InsetTabContent(content: @Composable () -> Unit) {
     ) {
         content()
     }
-}
-
-private fun Context.findActivity(): Activity? {
-    var current: Context? = this
-    while (current is ContextWrapper) {
-        if (current is Activity) return current
-        current = current.baseContext
-    }
-    return current as? Activity
 }
