@@ -195,9 +195,6 @@ fun QrSection(
     }
 }
 
-// ------------------------------------------------------------------
-// Modo QR: cámara + ZXing
-// ------------------------------------------------------------------
 @Composable
 private fun ScanPane(isBusy: Boolean, onCode: (String) -> Unit) {
     val context = LocalContext.current
@@ -213,9 +210,6 @@ private fun ScanPane(isBusy: Boolean, onCode: (String) -> Unit) {
     fun launchScanner() {
         scannerLauncher.launch(
             ScanOptions()
-                // Pantalla propia en vertical con diseño RutaPay. La
-                // orientación la fija el manifest de QrScannerActivity; dejamos
-                // que ZXing no la altere para no invertirla en algunos giros.
                 .setCaptureActivity(QrScannerActivity::class.java)
                 .setOrientationLocked(false)
                 .setDesiredBarcodeFormats(ScanOptions.QR_CODE)

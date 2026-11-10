@@ -1,5 +1,8 @@
 package com.rutapay.app.ui.dashboard
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -12,12 +15,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rutapay.app.data.ConfigManager
 import com.rutapay.app.data.local.SessionManager
@@ -71,6 +80,26 @@ fun DashboardScreen(
     val profileViewModel: ProfileViewModel = viewModel(
         factory = ProfileViewModel.Factory(authRepository)
     )
+
+    val isMap = selectedTab == 0
+    val context = LocalContext.current
+    val view = LocalView.current
+    DisposableEffect(isMap) {
+        val window = context.findActivity()?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        if (controller != null) {
+            if (isMap) {
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+        onDispose {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
 
     // Sin Scaffold: el contenido ocupa toda la pantalla y la barra inferior se dibuja encima.
     Box(modifier = Modifier.fillMaxSize()) {
@@ -128,4 +157,13 @@ private fun InsetTabContent(content: @Composable () -> Unit) {
     ) {
         content()
     }
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return current as? Activity
 }

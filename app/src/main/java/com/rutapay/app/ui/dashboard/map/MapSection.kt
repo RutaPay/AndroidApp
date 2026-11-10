@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.visible
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -499,11 +500,14 @@ private fun FullScreenMap(
                 bearing(0.0)
             }
         },
+        scaleBar = {
+            ScaleBar(Modifier.visible(visible = false))
+        },
         logo = {
-            Logo(Modifier.padding(bottom = BottomBarSpace + 16.dp))
+            Logo(Modifier.visible(visible = false))
         },
         attribution = {
-            Attribution(Modifier.padding(bottom = BottomBarSpace + 16.dp))
+            Attribution(Modifier.visible(visible = false))
         }
     ) {
         if (idaFeatures.isNotEmpty()) {
