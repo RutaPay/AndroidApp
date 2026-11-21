@@ -96,6 +96,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
+// Los comentarios que representan dos barras "//" Son para funciones oficiales utiles.
+// Los comentarios que representan "/*" son para funciones demo o de representacion unicamente.
+// todo debajo de ello se puede borrar sin problema.
+
+
 // ============================================================================
 // ESTRUCTURA DE PARADAS Y MODELOS DE DATOS PARA LA RUTA 60
 // ============================================================================
@@ -123,7 +128,8 @@ data class OfficialRouteStop(
 )
 
 /**
- * Coordenadas oficiales exactas proporcionadas para la **Ruta 60 (PINOS)**.
+ * Coordenadas oficiales exactas proporcionadas para la **Ruta 60 (PINOS)
+ * Coordenadas unicamente propuestas para la Demo, eliminables.
  */
 val R60OfficialStops = listOf(
     OfficialRouteStop("r60_base", "Parada Ruta 60 (Base / Principal)", 1, Point.fromLngLat(-100.7804651, 20.5148246), "Base Principal Ruta 60"),
@@ -442,7 +448,7 @@ fun MapSection(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ---- 2. Tarjeta Demo de Selección de Origen y Destino ----
+            /* ---- 2. Tarjeta Demo de Selección de Origen y Destino ---- */
             OriginDestinationSelectorCard(
                 originStop = selectedOriginStop,
                 destinationStop = selectedDestinationStop,
@@ -459,7 +465,7 @@ fun MapSection(
             )
         }
 
-        // ---- Panel Flotante de Ruta Seleccionada y Sub-menú de Paradas Oficiales ----
+        /* ---- Panel Flotante de Ruta Seleccionada y Sub-menú de Paradas Oficiales */
         AnimatedVisibility(
             visible = selectedRoute != null && !dropdownExpanded,
             enter = expandVertically(),
@@ -507,7 +513,7 @@ fun MapSection(
                             }
                         }
 
-                        // SUB-MENÚ INTERACTIVO DE PARADAS OFICIALES (Específico para Ruta 60)
+                        /* SUB-MENÚ INTERACTIVO DE PARADAS OFICIALES (Específico para Ruta 60) */
                         if (isR60Selected) {
                             Spacer(modifier = Modifier.height(10.dp))
                             Box(
@@ -560,7 +566,7 @@ fun MapSection(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Lista Horizontal interactiva con Soft-Zoom al presionar
+                            /* Lista Horizontal interactiva con Soft-Zoom al presionar */
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -675,7 +681,7 @@ fun MapSection(
         }
     }
 
-    // ---- Diálogos de Selección de Paradas (Demo) ----
+    /* ---- Diálogos de Selección de Paradas (Demo) ---- */
     if (showOriginPicker) {
         StopSelectionDialog(
             title = "Selecciona Punto de Partida",
@@ -764,7 +770,7 @@ private fun OriginDestinationSelectorCard(
                     }
                 }
 
-                // Campos de Origen y Destino
+                /* Campos de Origen y Destino */
                 Column(modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
@@ -1097,7 +1103,7 @@ private fun FullScreenMap(
             }
         }
 
-        // Capas para dibujar los puntos de las Paradas Oficiales en el mapa (Naranja con borde Blanco)
+        /* Capas para dibujar los puntos de las Paradas Oficiales en el mapa (Naranja con borde Blanco) */
         if (officialStops.isNotEmpty()) {
             CircleLayer(sourceState = officialStopsSourceState, layerId = "stops-outer-ring") {
                 circleColor = ColorValue(Color.White)
@@ -1111,7 +1117,7 @@ private fun FullScreenMap(
             }
         }
 
-        // Efecto de Soft-Zoom animado de cámara al presionar una parada en el sub-menú
+        /* Efecto de Soft-Zoom animado de cámara al presionar una parada en el sub-menú */
         MapEffect(focusedStop) { mapView ->
             focusedStop?.let { stop ->
                 mapView.camera.easeTo(
@@ -1124,7 +1130,7 @@ private fun FullScreenMap(
             }
         }
 
-        // Ajuste automático de cámara para encuadrar la ruta y todas las paradas oficiales
+        /* Ajuste automático de cámara para encuadrar la ruta y todas las paradas oficiales */
         MapEffect(idaFeatures, regresoFeatures, officialStops) { mapView ->
             if (focusedStop != null) return@MapEffect
 
