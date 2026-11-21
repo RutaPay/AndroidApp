@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,7 +34,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -71,6 +72,7 @@ import com.mapbox.maps.extension.compose.rememberMapState
 import com.mapbox.maps.extension.compose.style.ColorValue
 import com.mapbox.maps.extension.compose.style.DoubleListValue
 import com.mapbox.maps.extension.compose.style.DoubleValue
+import com.mapbox.maps.extension.compose.style.layers.generated.CircleLayer
 import com.mapbox.maps.extension.compose.style.layers.generated.LineCapValue
 import com.mapbox.maps.extension.compose.style.layers.generated.LineJoinValue
 import com.mapbox.maps.extension.compose.style.layers.generated.LineLayer
@@ -95,31 +97,11 @@ import kotlinx.coroutines.withContext
 import java.net.URL
 
 // ============================================================================
-// DOCUMENTACIÓN Y MODELOS DE DATOS PARA INTEGRACIÓN CON EL BACKEND
+// ESTRUCTURA DE PARADAS Y MODELOS DE DATOS PARA LA RUTA 60
 // ============================================================================
-/**
- * DOCUMENTACIÓN PARA EL DESARROLLADOR DEL BACKEND:
- *
- * Este archivo contiene los componentes de la interfaz de usuario para:
- * 1. El mapa a pantalla completa con Mapbox.
- * 2. El menú desplegable de búsqueda de rutas.
- * 3. El sub-menú selector de "Punto de partida" y "Destino" (Paradas).
- *
- * GUÍA DE INTEGRACIÓN API BACKEND:
- * - Cuando construyas los endpoints de paradas en la API, puedes reemplazar las estructuras
- *   demo [BusStopDemo] y [DemoStopsRepository] por llamadas Retrofit/Ktor/HttpClient.
- * - Endpoint recomendado para búsqueda de rutas por paradas:
- *   `GET /api/v1/routes/search?originStopId={idA}&destinationStopId={idB}`
- *   Respuesta esperada: Lista de objetos de ruta que contienen ambas paradas en secuencia.
- */
 
 /**
- * Modelo de datos que representa una Parada de Autobús.
- * @param id Identificador único de la parada en la base de datos (Ej: "stop_101").
- * @param name Nombre visible de la parada (Ej: "Central de Autobuses Celaya").
- * @param locationDescription Descripción adicional de ubicación o referencia.
- * @param latitude Coordenada de latitud GPS.
- * @param longitude Coordenada de longitud GPS.
+ * Modelo de datos que representa una Parada de Autobús (Demo).
  */
 data class BusStopDemo(
     val id: String,
@@ -130,8 +112,36 @@ data class BusStopDemo(
 )
 
 /**
- * Repositorio de datos DEMO para pruebas locales sin Backend.
- * Contiene paradas populares de Celaya y la relación de qué paradas recorre cada ruta.
+ * Modelo de datos para las paradas oficiales registradas en el sistema.
+ */
+data class OfficialRouteStop(
+    val id: String,
+    val name: String,
+    val sequenceNumber: Int,
+    val point: Point,
+    val description: String = ""
+)
+
+/**
+ * Coordenadas oficiales exactas proporcionadas para la **Ruta 60 (PINOS)**.
+ */
+val R60OfficialStops = listOf(
+    OfficialRouteStop("r60_base", "Parada Ruta 60 (Base / Principal)", 1, Point.fromLngLat(-100.7804651, 20.5148246), "Base Principal Ruta 60"),
+    OfficialRouteStop("r60_1", "Parada Ruta 60 - Punto 1", 2, Point.fromLngLat(-100.8127641, 20.5195271), "Zona Centro / Sur"),
+    OfficialRouteStop("r60_2", "Parada Ruta 60 - Punto 2", 3, Point.fromLngLat(-100.8275872, 20.5195474), "Tramo Sur-Poniente"),
+    OfficialRouteStop("r60_3", "Parada Ruta 60 - Punto 3", 4, Point.fromLngLat(-100.8400645, 20.5194977), "Zona Poniente"),
+    OfficialRouteStop("r60_4", "Parada Ruta 60 - Punto 4", 5, Point.fromLngLat(-100.8489929, 20.5203608), "Extremo Poniente"),
+    OfficialRouteStop("r60_5", "Parada Ruta 60 - Punto 5", 6, Point.fromLngLat(-100.8404791, 20.5483256), "Subiendo hacia el Norte"),
+    OfficialRouteStop("r60_6", "Parada Ruta 60 - Punto 6", 7, Point.fromLngLat(-100.8345247, 20.5535950), "Zona Norte / Circuito"),
+    OfficialRouteStop("r60_7", "Parada Ruta 60 - Punto 7", 8, Point.fromLngLat(-100.8260151, 20.5527643), "Eje Norte"),
+    OfficialRouteStop("r60_8", "Parada Ruta 60 - Punto 8", 9, Point.fromLngLat(-100.8121592, 20.5513734), "Eje Nororiente"),
+    OfficialRouteStop("r60_9", "Parada Ruta 60 - Punto 9", 10, Point.fromLngLat(-100.8080580, 20.5509745), "Tramo Oriente"),
+    OfficialRouteStop("r60_10", "Parada Ruta 60 - Punto 10", 11, Point.fromLngLat(-100.7810981, 20.5473756), "Bajando hacia el Oriente"),
+    OfficialRouteStop("r60_11", "Parada Ruta 60 - Punto 11", 12, Point.fromLngLat(-100.7766205, 20.5308457), "Cierre de circuito")
+)
+
+/**
+ * Repositorio DEMO con paradas representativas de Celaya y sus rutas directas.
  */
 object DemoStopsRepository {
     val CelayaStops = listOf(
@@ -145,11 +155,6 @@ object DemoStopsRepository {
         BusStopDemo("stop_parque", "Plaza Parque Celaya", "Eje Norponiente")
     )
 
-    /**
-     * Mapa DEMO que define las paradas DIRECTAS que recorre cada ruta.
-     * Solo las rutas que recorran la parada de Origen y de Destino en directo (sin transbordos)
-     * aparecerán en los resultados.
-     */
     val RouteStopsMapping = mapOf(
         "R8 - SAN JUAN DE LA VEGA" to listOf("stop_central", "stop_fovissste", "stop_tec"),
         "R1 - SMO - CELAYA" to listOf("stop_centro", "stop_fovissste", "stop_tec"),
@@ -157,18 +162,14 @@ object DemoStopsRepository {
         "R15 - SILVA X TENOCHTITLAN" to listOf("stop_fovissste", "stop_tec", "stop_villas"),
         "R37 - VILLAS DEL BAJÍO" to listOf("stop_villas", "stop_parque", "stop_central"),
         "R43 - ROMERAL X FOVISSSTE" to listOf("stop_fovissste", "stop_hospital", "stop_centro"),
+        "R60 - PINOS" to listOf("stop_parque", "stop_fovissste", "stop_hospital"),
         "R63 - UNIVERSIDADES" to listOf("stop_tec", "stop_hospital", "stop_parque")
     )
 
-    /**
-     * Búsqueda estricta de rutas directas (sin transbordos).
-     * Devuelve ÚNICAMENTE la ruta que pasa por la parada de Origen y luego por el Destino.
-     */
     fun findMatchingRoutes(originStopId: String, destinationStopId: String): List<String> {
         return RouteStopsMapping.filter { (_, stops) ->
             val originIndex = stops.indexOf(originStopId)
             val destIndex = stops.indexOf(destinationStopId)
-            // Se requiere que la misma ruta contenga de forma directa ambas paradas y en orden
             originIndex != -1 && destIndex != -1 && originIndex < destIndex
         }.keys.toList()
     }
@@ -198,7 +199,7 @@ val CelayaRoutes = listOf(
 )
 
 /**
- * Componente principal de la Sección del Mapa en el Dashboard.
+ * Vista Mapa a pantalla completa con selector de rutas superior, tarjeta demo y paradas oficiales interactivas.
  */
 @Composable
 fun MapSection(
@@ -213,11 +214,20 @@ fun MapSection(
     var reloadTick by remember { mutableIntStateOf(0) }
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    // Estados para el sub-menú de Origen y Destino (Paradas)
+    // Estados para el sub-menú de Origen y Destino
     var selectedOriginStop by remember { mutableStateOf<BusStopDemo?>(null) }
     var selectedDestinationStop by remember { mutableStateOf<BusStopDemo?>(null) }
     var showOriginPicker by remember { mutableStateOf(false) }
     var showDestinationPicker by remember { mutableStateOf(false) }
+    var focusedOfficialStop by remember { mutableStateOf<OfficialRouteStop?>(null) }
+
+    // Verifica si la ruta seleccionada es la Ruta 60 (R60 - PINOS)
+    val isR60Selected = remember(selectedRoute) {
+        selectedRoute?.contains("R60") == true
+    }
+    val officialStops = remember(isR60Selected) {
+        if (isR60Selected) R60OfficialStops else emptyList()
+    }
 
     // Cálculo de rutas recomendadas en base a las paradas seleccionadas
     val matchingRoutes = remember(selectedOriginStop, selectedDestinationStop) {
@@ -237,13 +247,15 @@ fun MapSection(
         // ---- Mapa a pantalla completa ----
         FullScreenMap(
             selectedRoute = selectedRoute,
+            officialStops = officialStops,
+            focusedStop = focusedOfficialStop,
             reloadTick = reloadTick,
             onLoadingChange = { loadingRoute = it },
             onError = { routeError = it },
             modifier = Modifier.fillMaxSize()
         )
 
-        // ---- Contenedor Superior (Barra de búsqueda, menú desplegable y sub-menú de Paradas) ----
+        // ---- Contenedor Superior (Barra de búsqueda, menú desplegable y Tarjeta Origen/Destino) ----
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -359,7 +371,7 @@ fun MapSection(
                         }
                     }
 
-                    // Lista desplegable de rutas
+                    // Lista desplegable de rutas (de arriba a abajo)
                     AnimatedVisibility(
                         visible = dropdownExpanded,
                         enter = expandVertically(),
@@ -430,8 +442,7 @@ fun MapSection(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ---- 2. Sub-menú de Paradas: Punto de Partida y Destino ----
-            // Ubicado debajo del menú desplegable de rutas como se solicitó
+            // ---- 2. Tarjeta Demo de Selección de Origen y Destino ----
             OriginDestinationSelectorCard(
                 originStop = selectedOriginStop,
                 destinationStop = selectedDestinationStop,
@@ -448,7 +459,7 @@ fun MapSection(
             )
         }
 
-        // ---- Ruta seleccionada flotante ----
+        // ---- Panel Flotante de Ruta Seleccionada y Sub-menú de Paradas Oficiales ----
         AnimatedVisibility(
             visible = selectedRoute != null && !dropdownExpanded,
             enter = expandVertically(),
@@ -461,34 +472,156 @@ fun MapSection(
         ) {
             selectedRoute?.let { route ->
                 Card(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = route,
-                                style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WebDark)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                RouteLegendDot(color = WebRouteIda, label = "IDA")
-                                Spacer(modifier = Modifier.width(10.dp))
-                                RouteLegendDot(color = WebRouteRegreso, label = "REGRESO")
-                                if (loadingRoute) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = route,
+                                    style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WebDark)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RouteLegendDot(color = WebRouteIda, label = "IDA")
                                     Spacer(modifier = Modifier.width(10.dp))
-                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = WebPrimary)
+                                    RouteLegendDot(color = WebRouteRegreso, label = "REGRESO")
+                                    if (loadingRoute) {
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = WebPrimary)
+                                    }
                                 }
                             }
+                            IconButton(onClick = {
+                                selectedRoute = null
+                                focusedOfficialStop = null
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Quitar ruta", tint = WebMutedText)
+                            }
                         }
-                        IconButton(onClick = { selectedRoute = null }) {
-                            Icon(Icons.Default.Close, contentDescription = "Quitar ruta", tint = WebMutedText)
+
+                        // SUB-MENÚ INTERACTIVO DE PARADAS OFICIALES (Específico para Ruta 60)
+                        if (isR60Selected) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(WebCardBorder.copy(alpha = 0.5f))
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.DirectionsBus,
+                                        contentDescription = null,
+                                        tint = WebPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Paradas Oficiales (Ruta 60)",
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = WebDark
+                                        )
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = WebPrimary.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = "${officialStops.size} Paradas",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = WebPrimary
+                                        )
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Lista Horizontal interactiva con Soft-Zoom al presionar
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(officialStops) { stop ->
+                                    val isFocused = focusedOfficialStop?.id == stop.id
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isFocused) WebPrimary else Color(0xFFF1F5F9),
+                                        modifier = Modifier
+                                            .clickable { focusedOfficialStop = stop }
+                                            .border(
+                                                1.dp,
+                                                if (isFocused) WebPrimary else WebCardBorder,
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(22.dp)
+                                                    .background(
+                                                        if (isFocused) Color.White else WebPrimary,
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DirectionsBus,
+                                                    contentDescription = null,
+                                                    tint = if (isFocused) WebPrimary else Color.White,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(
+                                                    text = stop.name,
+                                                    style = TextStyle(
+                                                        fontFamily = Lexend,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isFocused) Color.White else WebDark
+                                                    )
+                                                )
+                                                Text(
+                                                    text = stop.description,
+                                                    style = TextStyle(
+                                                        fontFamily = Lexend,
+                                                        fontSize = 9.sp,
+                                                        color = if (isFocused) Color.White.copy(alpha = 0.8f) else WebMutedText
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -569,8 +702,7 @@ fun MapSection(
 }
 
 /**
- * Componente Tarjeta para la selección de "Punto de partida" y "Destino".
- * Replica exactamente la estética de la imagen de referencia sin incluir el botón "+".
+ * Tarjeta para la selección de "Punto de partida" y "Destino" (Demo).
  */
 @Composable
 private fun OriginDestinationSelectorCard(
@@ -598,7 +730,6 @@ private fun OriginDestinationSelectorCard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(start = 6.dp, end = 14.dp)
                 ) {
-                    // Círculo Punto de Partida
                     Box(
                         modifier = Modifier
                             .size(16.dp)
@@ -612,7 +743,6 @@ private fun OriginDestinationSelectorCard(
                         )
                     }
 
-                    // Línea conectora
                     Box(
                         modifier = Modifier
                             .width(2.dp)
@@ -620,7 +750,6 @@ private fun OriginDestinationSelectorCard(
                             .background(WebDark.copy(alpha = 0.8f))
                     )
 
-                    // Cuadrado Destino
                     Box(
                         modifier = Modifier
                             .size(16.dp)
@@ -635,9 +764,8 @@ private fun OriginDestinationSelectorCard(
                     }
                 }
 
-                // Campos de Texto/Selección de Origen y Destino
+                // Campos de Origen y Destino
                 Column(modifier = Modifier.weight(1f)) {
-                    // Fila Punto de Partida
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -655,7 +783,6 @@ private fun OriginDestinationSelectorCard(
                         )
                     }
 
-                    // Divisor Horizontal
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -663,7 +790,6 @@ private fun OriginDestinationSelectorCard(
                             .background(Color(0xFFCBD5E1))
                     )
 
-                    // Fila Destino
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -697,7 +823,6 @@ private fun OriginDestinationSelectorCard(
                 }
             }
 
-            // Sección DEMO: Muestra los resultados de las rutas calculadas que pasan por ambas paradas
             if (originStop != null && destinationStop != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Box(
@@ -856,12 +981,11 @@ private fun StopSelectionDialog(
     )
 }
 
-/**
- * Renderizado del mapa a pantalla completa con Mapbox.
- */
 @Composable
 private fun FullScreenMap(
     selectedRoute: String?,
+    officialStops: List<OfficialRouteStop>,
+    focusedStop: OfficialRouteStop?,
     reloadTick: Int,
     onLoadingChange: (Boolean) -> Unit,
     onError: (String?) -> Unit,
@@ -910,36 +1034,50 @@ private fun FullScreenMap(
 
     val idaSourceState = remember { GeoJsonSourceState("route-ida") }
     val regresoSourceState = remember { GeoJsonSourceState("route-regreso") }
+    val officialStopsSourceState = remember { GeoJsonSourceState("official-stops-source") }
+
     LaunchedEffect(idaFeatures) {
         idaSourceState.data = GeoJSONData(idaFeatures)
     }
     LaunchedEffect(regresoFeatures) {
         regresoSourceState.data = GeoJSONData(regresoFeatures)
     }
+    LaunchedEffect(officialStops) {
+        val stopFeatures = officialStops.map { stop ->
+            Feature.fromGeometry(stop.point).apply {
+                addStringProperty("name", stop.name)
+                addNumberProperty("seq", stop.sequenceNumber)
+            }
+        }
+        officialStopsSourceState.data = GeoJSONData(stopFeatures)
+    }
 
     val mapState = rememberMapState {
         coroutineScope.launch {
             mapLoadingErrorEvents.onEach {
-                // Manejo de eventos de error de carga del mapa
+                // Error occurred when loading the map
             }
         }
         coroutineScope.launch {
             styleLoadedEvents.first().let {
-                // Evento de estilo cargado
+                // Style loaded
             }
         }
     }
+
+    val mapViewportState = rememberMapViewportState {
+        setCameraOptions {
+            zoom(12.0)
+            center(Point.fromLngLat(-100.8140458, 20.521788))
+            pitch(0.0)
+            bearing(0.0)
+        }
+    }
+
     MapboxMap(
         modifier.fillMaxSize(),
         mapState = mapState,
-        mapViewportState = rememberMapViewportState {
-            setCameraOptions {
-                zoom(12.0)
-                center(Point.fromLngLat(-100.8140458, 20.521788))
-                pitch(0.0)
-                bearing(0.0)
-            }
-        }
+        mapViewportState = mapViewportState
     ) {
         if (idaFeatures.isNotEmpty()) {
             LineLayer(sourceState = idaSourceState, layerId = "route-ida") {
@@ -959,22 +1097,55 @@ private fun FullScreenMap(
             }
         }
 
-        MapEffect(idaFeatures, regresoFeatures) { mapView ->
-            val points = (idaFeatures + regresoFeatures).flatMap { feature ->
+        // Capas para dibujar los puntos de las Paradas Oficiales en el mapa (Naranja con borde Blanco)
+        if (officialStops.isNotEmpty()) {
+            CircleLayer(sourceState = officialStopsSourceState, layerId = "stops-outer-ring") {
+                circleColor = ColorValue(Color.White)
+                circleRadius = DoubleValue(9.0)
+                circleStrokeColor = ColorValue(Color(0xFFFF6B00))
+                circleStrokeWidth = DoubleValue(2.0)
+            }
+            CircleLayer(sourceState = officialStopsSourceState, layerId = "stops-inner-dot") {
+                circleColor = ColorValue(Color(0xFFFF6B00))
+                circleRadius = DoubleValue(5.5)
+            }
+        }
+
+        // Efecto de Soft-Zoom animado de cámara al presionar una parada en el sub-menú
+        MapEffect(focusedStop) { mapView ->
+            focusedStop?.let { stop ->
+                mapView.camera.easeTo(
+                    com.mapbox.maps.CameraOptions.Builder()
+                        .center(stop.point)
+                        .zoom(15.8)
+                        .build(),
+                    MapAnimationOptions.mapAnimationOptions { duration(900L) }
+                )
+            }
+        }
+
+        // Ajuste automático de cámara para encuadrar la ruta y todas las paradas oficiales
+        MapEffect(idaFeatures, regresoFeatures, officialStops) { mapView ->
+            if (focusedStop != null) return@MapEffect
+
+            val routePoints = (idaFeatures + regresoFeatures).flatMap { feature ->
                 when (val geometry = feature.geometry()) {
                     is LineString -> geometry.coordinates()
                     is MultiLineString -> geometry.coordinates().flatten()
                     else -> emptyList()
                 }
             }
-            if (points.size >= 2) {
+            val stopPoints = officialStops.map { it.point }
+            val allPoints = routePoints + stopPoints
+
+            if (allPoints.size >= 2) {
                 val camera = mapView.mapboxMap.cameraForCoordinates(
-                    points,
+                    allPoints,
                     EdgeInsets(
-                        (120 * density).toDouble(),
-                        (16 * density).toDouble(),
-                        ((BottomBarSpace.value + 40) * density).toDouble(),
-                        (16 * density).toDouble()
+                        (140 * density).toDouble(),
+                        (20 * density).toDouble(),
+                        ((BottomBarSpace.value + 160) * density).toDouble(),
+                        (20 * density).toDouble()
                     ),
                     null,
                     null
@@ -988,9 +1159,6 @@ private fun FullScreenMap(
     }
 }
 
-/**
- * Leyenda de color para los trazados de IDA y REGRESO.
- */
 @Composable
 private fun RouteLegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
