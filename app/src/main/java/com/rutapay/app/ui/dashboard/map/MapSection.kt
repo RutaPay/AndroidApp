@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -100,28 +98,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.hypot
 
-// Los comentarios que representan dos barras "//" Son para funciones oficiales utiles.
-// Los comentarios que representan "/*" son para funciones demo o de representacion unicamente.
-// todo debajo de ello se puede borrar sin problema.
-
-
 // ============================================================================
-// ESTRUCTURA DE PARADAS Y CARGA DINÁMICA DESDE GEOJSON (ALINEADO CON RUTAPAYWEB)
+// ESTRUCTURA DE PARADAS OFICIALES Y CARGA DINÁMICA DESDE GEOJSON
 // ============================================================================
 
 private const val ROUTES_BASE_URL =
     "https://raw.githubusercontent.com/RutaPay/Routes/refs/heads/main"
-
-/**
- * Modelo de datos que representa una Parada de Autobús (Demo).
- */
-data class BusStopDemo(
-    val id: String,
-    val name: String,
-    val locationDescription: String = "",
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0
-)
 
 /**
  * Modelo de datos para las paradas oficiales cargadas desde `${routeId}_P.geojson`.
@@ -163,7 +145,7 @@ internal fun formatSentido(sentido: String?): String {
 }
 
 /**
- * Caché en memoria por ruta para las paradas (`null` = la ruta aún no tiene archivo `_P.geojson` publicado).
+ * Repositorio de producción que obtiene dinámicamente las paradas oficiales por ruta desde la API/GeoJSON.
  */
 private object RouteStopsRepository {
     private val stopsCache = mutableMapOf<String, List<RouteStop>?>()
@@ -231,41 +213,6 @@ private object RouteStopsRepository {
     }
 }
 
-/**
- * Repositorio DEMO con paradas representativas de Celaya y sus rutas directas.
- */
-object DemoStopsRepository {
-    val CelayaStops = listOf(
-        BusStopDemo("stop_central", "Parada Central de Autobuses", "Av. Antonio Plaza"),
-        BusStopDemo("stop_tec", "TecNM Campus 1 (Tecnológico)", "Av. Tecnológico"),
-        BusStopDemo("stop_hospital", "Hospital General Celaya", "Diego Rivera"),
-        BusStopDemo("stop_villas", "Villas del Bajío", "Av. Las Torres"),
-        BusStopDemo("stop_fovissste", "Fovissste / Av. Tecnológico", "Fovissste"),
-        BusStopDemo("stop_centro", "Centro Histórico", "Jardín Principal Celaya"),
-        BusStopDemo("stop_canitos", "Mercado Cañitos", "Barrio de San Miguel"),
-        BusStopDemo("stop_parque", "Plaza Parque Celaya", "Eje Norponiente")
-    )
-
-    val RouteStopsMapping = mapOf(
-        "R8 - SAN JUAN DE LA VEGA" to listOf("stop_central", "stop_fovissste", "stop_tec"),
-        "R1 - SMO - CELAYA" to listOf("stop_centro", "stop_fovissste", "stop_tec"),
-        "R9 - HOSPITAL" to listOf("stop_central", "stop_hospital", "stop_centro"),
-        "R15 - SILVA X TENOCHTITLAN" to listOf("stop_fovissste", "stop_tec", "stop_villas"),
-        "R37 - VILLAS DEL BAJÍO" to listOf("stop_villas", "stop_parque", "stop_central"),
-        "R43 - ROMERAL X FOVISSSTE" to listOf("stop_fovissste", "stop_hospital", "stop_centro"),
-        "R60 - PINOS" to listOf("stop_parque", "stop_fovissste", "stop_hospital"),
-        "R63 - UNIVERSIDADES" to listOf("stop_tec", "stop_hospital", "stop_parque")
-    )
-
-    fun findMatchingRoutes(originStopId: String, destinationStopId: String): List<String> {
-        return RouteStopsMapping.filter { (_, stops) ->
-            val originIndex = stops.indexOf(originStopId)
-            val destIndex = stops.indexOf(destinationStopId)
-            originIndex != -1 && destIndex != -1 && originIndex < destIndex
-        }.keys.toList()
-    }
-}
-
 // Lista general de nombres de rutas de Celaya
 val CelayaRoutes = listOf(
     "R1 - SMO - CELAYA", "R2 - TAMAYO", "R3 - SAN LORENZO", "R7 - EL SAUZ",
@@ -286,11 +233,11 @@ val CelayaRoutes = listOf(
     "R53 - ROMERAL X INDUSTRIAL", "R54 - SAN LUIS REY X IRRIGACION",
     "R54 - SAN LUIS REY X 16 DE SEPTIEMBRE", "R55 - YUSTIS", "R56 - SAN ELIAS",
     "R58 - PROGRESO", "R60 - PINOS", "R61 - INDUSTRIAL", "R62 - SMO - CD INDUSTRIAL",
-    "R63 - UNIVERSIDADES", "R67 - LITTLE SAINT JAMES - CAMINO A KIRK"
+    "R63 - UNIVERSIDADES"
 )
 
 /**
- * Vista Mapa a pantalla completa con selector de rutas superior, tarjeta demo y paradas oficiales interactivas.
+ * Vista Mapa a pantalla completa con selector de rutas superior y módulo oficial de paradas.
  */
 @Composable
 fun MapSection(
@@ -306,13 +253,7 @@ fun MapSection(
     var reloadTick by remember { mutableIntStateOf(0) }
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    // Estados para el sub-menú de Origen y Destino
-    var selectedOriginStop by remember { mutableStateOf<BusStopDemo?>(null) }
-    var selectedDestinationStop by remember { mutableStateOf<BusStopDemo?>(null) }
-    var showOriginPicker by remember { mutableStateOf(false) }
-    var showDestinationPicker by remember { mutableStateOf(false) }
-
-    // Estados para las paradas oficiales de la ruta (alineado con RutaPayWeb)
+    // Estados para las paradas oficiales de la ruta (conectado al backend real)
     var stopsVisible by remember { mutableStateOf(false) }
     var stopsLoading by remember { mutableStateOf(false) }
     var stopsList by remember { mutableStateOf<List<RouteStop>>(emptyList()) }
@@ -390,15 +331,6 @@ fun MapSection(
         }
     }
 
-    // Cálculo de rutas recomendadas en base a las paradas seleccionadas
-    val matchingRoutes = remember(selectedOriginStop, selectedDestinationStop) {
-        if (selectedOriginStop != null && selectedDestinationStop != null) {
-            DemoStopsRepository.findMatchingRoutes(selectedOriginStop!!.id, selectedDestinationStop!!.id)
-        } else {
-            emptyList()
-        }
-    }
-
     val filtered = remember(search) {
         if (search.isBlank()) CelayaRoutes
         else CelayaRoutes.filter { it.contains(search, ignoreCase = true) }
@@ -419,7 +351,7 @@ fun MapSection(
             modifier = Modifier.fillMaxSize()
         )
 
-        // ---- Contenedor Superior (Barra de búsqueda, menú desplegable y Tarjeta Origen/Destino) ----
+        // ---- Contenedor Superior (Barra de búsqueda y menú desplegable) ----
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -427,7 +359,6 @@ fun MapSection(
                 .statusBarsPadding()
                 .padding(12.dp)
         ) {
-            // ---- 1. Buscador y menú desplegable superior ----
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -603,27 +534,9 @@ fun MapSection(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            /* ---- 2. Tarjeta Demo de Selección de Origen y Destino ---- */
-            OriginDestinationSelectorCard(
-                originStop = selectedOriginStop,
-                destinationStop = selectedDestinationStop,
-                matchingRoutes = matchingRoutes,
-                onSelectOriginClick = { showOriginPicker = true },
-                onSelectDestinationClick = { showDestinationPicker = true },
-                onRouteSelect = { routeName ->
-                    selectedRoute = routeName
-                },
-                onClear = {
-                    selectedOriginStop = null
-                    selectedDestinationStop = null
-                }
-            )
         }
 
-        /* ---- Panel Flotante de Ruta Seleccionada, Botón de Paradas y Popup de Parada ---- */
+        // ---- Panel Flotante Inferior (Ruta Seleccionada, Botón Mostrar/Ocultar Paradas y Lista Oficial) ----
         AnimatedVisibility(
             visible = selectedRoute != null && !dropdownExpanded,
             enter = expandVertically(),
@@ -636,7 +549,7 @@ fun MapSection(
         ) {
             selectedRoute?.let { route ->
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Mensaje informativo de paradas (cuando no hay paradas publicadas)
+                    // Mensaje informativo de paradas (cuando no hay paradas publicadas aún para esa ruta)
                     AnimatedVisibility(visible = stopsInfoMessage != null) {
                         stopsInfoMessage?.let { infoMsg ->
                             Card(
@@ -890,7 +803,7 @@ fun MapSection(
                                 }
                             }
 
-                            /* Lista Horizontal interactiva de paradas reales de la ruta */
+                            // Lista Horizontal interactiva de paradas oficiales reales de la ruta
                             if (stopsVisible && stopsList.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Box(
@@ -1021,311 +934,6 @@ fun MapSection(
             }
         }
     }
-
-    /* ---- Diálogos de Selección de Paradas (Demo) ---- */
-    if (showOriginPicker) {
-        StopSelectionDialog(
-            title = "Selecciona Punto de Partida",
-            stops = DemoStopsRepository.CelayaStops,
-            onStopSelected = { stop ->
-                selectedOriginStop = stop
-                showOriginPicker = false
-            },
-            onDismiss = { showOriginPicker = false }
-        )
-    }
-
-    if (showDestinationPicker) {
-        StopSelectionDialog(
-            title = "Selecciona Destino",
-            stops = DemoStopsRepository.CelayaStops,
-            onStopSelected = { stop ->
-                selectedDestinationStop = stop
-                showDestinationPicker = false
-            },
-            onDismiss = { showDestinationPicker = false }
-        )
-    }
-}
-
-/**
- * Tarjeta para la selección de "Punto de partida" y "Destino" (Demo).
- */
-@Composable
-private fun OriginDestinationSelectorCard(
-    originStop: BusStopDemo?,
-    destinationStop: BusStopDemo?,
-    matchingRoutes: List<String>,
-    onSelectOriginClick: () -> Unit,
-    onSelectDestinationClick: () -> Unit,
-    onRouteSelect: (String) -> Unit,
-    onClear: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF3F8)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Indicador Gráfico Izquierdo (Punto -> Línea -> Cuadrado)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(start = 6.dp, end = 14.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(WebDark, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(Color.White, CircleShape)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .width(2.dp)
-                            .height(28.dp)
-                            .background(WebDark.copy(alpha = 0.8f))
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(WebDark, RoundedCornerShape(3.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(Color.White, RoundedCornerShape(1.dp))
-                        )
-                    }
-                }
-
-                /* Campos de Origen y Destino */
-                Column(modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectOriginClick() }
-                            .padding(vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = originStop?.name ?: "Punto de partida",
-                            style = TextStyle(
-                                fontFamily = Lexend,
-                                fontSize = 15.sp,
-                                fontWeight = if (originStop != null) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (originStop != null) WebDark else Color(0xFF0F263D)
-                            )
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color(0xFFCBD5E1))
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectDestinationClick() }
-                            .padding(vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = destinationStop?.name ?: "Destino",
-                            style = TextStyle(
-                                fontFamily = Lexend,
-                                fontSize = 15.sp,
-                                fontWeight = if (destinationStop != null) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (destinationStop != null) WebDark else Color(0xFF0F263D)
-                            )
-                        )
-                    }
-                }
-
-                if (originStop != null || destinationStop != null) {
-                    IconButton(
-                        onClick = onClear,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Limpiar selección",
-                            tint = WebMutedText,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            if (originStop != null && destinationStop != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color(0xFFCBD5E1))
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (matchingRoutes.isNotEmpty()) {
-                    Text(
-                        text = "Rutas sugeridas que conectan ambas paradas:",
-                        style = TextStyle(
-                            fontFamily = Lexend,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WebPrimary
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        matchingRoutes.forEach { routeName ->
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, WebPrimary.copy(alpha = 0.3f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onRouteSelect(routeName) }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.DirectionsBus,
-                                        contentDescription = null,
-                                        tint = WebPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = routeName,
-                                        style = TextStyle(
-                                            fontFamily = Lexend,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WebDark
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = "Ver en mapa",
-                                        style = TextStyle(
-                                            fontFamily = Lexend,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WebPrimary
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "No se encontraron rutas directas entre estas paradas en la demo.",
-                        style = TextStyle(
-                            fontFamily = Lexend,
-                            fontSize = 11.sp,
-                            color = Color(0xFFD93025)
-                        )
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Diálogo interactivo DEMO para la selección de paradas.
- */
-@Composable
-private fun StopSelectionDialog(
-    title: String,
-    stops: List<BusStopDemo>,
-    onStopSelected: (BusStopDemo) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = title,
-                style = TextStyle(
-                    fontFamily = Lexend,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WebDark
-                )
-            )
-        },
-        text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                items(stops) { stop ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onStopSelected(stop) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Place,
-                            contentDescription = null,
-                            tint = WebPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stop.name,
-                                style = TextStyle(
-                                    fontFamily = Lexend,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = WebDark
-                                )
-                            )
-                            if (stop.locationDescription.isNotBlank()) {
-                                Text(
-                                    text = stop.locationDescription,
-                                    style = TextStyle(
-                                        fontFamily = Lexend,
-                                        fontSize = 11.sp,
-                                        color = WebMutedText
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Cancelar",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, color = WebMutedText)
-                )
-            }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(16.dp)
-    )
 }
 
 @Composable
@@ -1478,7 +1086,7 @@ private fun FullScreenMap(
             }
         }
 
-        /* Capas para dibujar los puntos de las Paradas en el mapa (#449dd1 con borde blanco, igual que RutaPayWeb) */
+        // Capas para dibujar los puntos de las Paradas Oficiales reales (#449dd1 con borde blanco)
         if (stops.isNotEmpty()) {
             CircleLayer(sourceState = stopsSourceState, layerId = "route-stops-layer") {
                 circleColor = ColorValue(WebPrimary)
@@ -1498,7 +1106,7 @@ private fun FullScreenMap(
             }
         }
 
-        /* Efecto de Soft-Zoom animado de cámara al presionar una parada */
+        // Efecto de Soft-Zoom animado de cámara al presionar una parada
         MapEffect(focusedStop) { mapView ->
             focusedStop?.let { stop ->
                 mapView.camera.easeTo(
@@ -1511,7 +1119,7 @@ private fun FullScreenMap(
             }
         }
 
-        /* Ajuste automático de cámara para encuadrar la ruta */
+        // Ajuste automático de cámara para encuadrar la ruta
         MapEffect(idaFeatures, regresoFeatures) { mapView ->
             if (focusedStop != null) return@MapEffect
 
