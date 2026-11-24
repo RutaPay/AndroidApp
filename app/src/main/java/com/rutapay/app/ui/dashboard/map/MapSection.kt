@@ -4,9 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,9 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -32,9 +28,7 @@ import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -96,28 +89,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
-// Los comentarios que representan dos barras "//" Son para funciones oficiales utiles.
-// Los comentarios que representan "/*" son para funciones demo o de representacion unicamente.
-// todo debajo de ello se puede borrar sin problema.
-
-
-// ============================================================================
-// ESTRUCTURA DE PARADAS Y MODELOS DE DATOS PARA LA RUTA 60
-// ============================================================================
-
 /**
- * Modelo de datos que representa una Parada de Autobús (Demo).
- */
-data class BusStopDemo(
-    val id: String,
-    val name: String,
-    val locationDescription: String = "",
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0
-)
-
-/**
- * Modelo de datos para las paradas oficiales registradas en el sistema.
+ * Modelo de datos para las paradas oficiales de una ruta (con marcadores naranja en el mapa).
  */
 data class OfficialRouteStop(
     val id: String,
@@ -128,8 +101,7 @@ data class OfficialRouteStop(
 )
 
 /**
- * Coordenadas oficiales exactas proporcionadas para la **Ruta 60 (PINOS)
- * Coordenadas unicamente propuestas para la Demo, eliminables.
+ * Coordenadas de las paradas con puntito naranja para la Ruta 60 (R60 - PINOS).
  */
 val R60OfficialStops = listOf(
     OfficialRouteStop("r60_base", "Parada Ruta 60 (Base / Principal)", 1, Point.fromLngLat(-100.7804651, 20.5148246), "Base Principal Ruta 60"),
@@ -145,41 +117,6 @@ val R60OfficialStops = listOf(
     OfficialRouteStop("r60_10", "Parada Ruta 60 - Punto 10", 11, Point.fromLngLat(-100.7810981, 20.5473756), "Bajando hacia el Oriente"),
     OfficialRouteStop("r60_11", "Parada Ruta 60 - Punto 11", 12, Point.fromLngLat(-100.7766205, 20.5308457), "Cierre de circuito")
 )
-
-/**
- * Repositorio DEMO con paradas representativas de Celaya y sus rutas directas.
- */
-object DemoStopsRepository {
-    val CelayaStops = listOf(
-        BusStopDemo("stop_central", "Parada Central de Autobuses", "Av. Antonio Plaza"),
-        BusStopDemo("stop_tec", "TecNM Campus 1 (Tecnológico)", "Av. Tecnológico"),
-        BusStopDemo("stop_hospital", "Hospital General Celaya", "Diego Rivera"),
-        BusStopDemo("stop_villas", "Villas del Bajío", "Av. Las Torres"),
-        BusStopDemo("stop_fovissste", "Fovissste / Av. Tecnológico", "Fovissste"),
-        BusStopDemo("stop_centro", "Centro Histórico", "Jardín Principal Celaya"),
-        BusStopDemo("stop_canitos", "Mercado Cañitos", "Barrio de San Miguel"),
-        BusStopDemo("stop_parque", "Plaza Parque Celaya", "Eje Norponiente")
-    )
-
-    val RouteStopsMapping = mapOf(
-        "R8 - SAN JUAN DE LA VEGA" to listOf("stop_central", "stop_fovissste", "stop_tec"),
-        "R1 - SMO - CELAYA" to listOf("stop_centro", "stop_fovissste", "stop_tec"),
-        "R9 - HOSPITAL" to listOf("stop_central", "stop_hospital", "stop_centro"),
-        "R15 - SILVA X TENOCHTITLAN" to listOf("stop_fovissste", "stop_tec", "stop_villas"),
-        "R37 - VILLAS DEL BAJÍO" to listOf("stop_villas", "stop_parque", "stop_central"),
-        "R43 - ROMERAL X FOVISSSTE" to listOf("stop_fovissste", "stop_hospital", "stop_centro"),
-        "R60 - PINOS" to listOf("stop_parque", "stop_fovissste", "stop_hospital"),
-        "R63 - UNIVERSIDADES" to listOf("stop_tec", "stop_hospital", "stop_parque")
-    )
-
-    fun findMatchingRoutes(originStopId: String, destinationStopId: String): List<String> {
-        return RouteStopsMapping.filter { (_, stops) ->
-            val originIndex = stops.indexOf(originStopId)
-            val destIndex = stops.indexOf(destinationStopId)
-            originIndex != -1 && destIndex != -1 && originIndex < destIndex
-        }.keys.toList()
-    }
-}
 
 // Lista general de nombres de rutas de Celaya
 val CelayaRoutes = listOf(
@@ -205,7 +142,7 @@ val CelayaRoutes = listOf(
 )
 
 /**
- * Vista Mapa a pantalla completa con selector de rutas superior, tarjeta demo y paradas oficiales interactivas.
+ * Vista Mapa a pantalla completa con selector de rutas superior unificado.
  */
 @Composable
 fun MapSection(
@@ -220,28 +157,12 @@ fun MapSection(
     var reloadTick by remember { mutableIntStateOf(0) }
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    // Estados para el sub-menú de Origen y Destino
-    var selectedOriginStop by remember { mutableStateOf<BusStopDemo?>(null) }
-    var selectedDestinationStop by remember { mutableStateOf<BusStopDemo?>(null) }
-    var showOriginPicker by remember { mutableStateOf(false) }
-    var showDestinationPicker by remember { mutableStateOf(false) }
-    var focusedOfficialStop by remember { mutableStateOf<OfficialRouteStop?>(null) }
-
     // Verifica si la ruta seleccionada es la Ruta 60 (R60 - PINOS)
     val isR60Selected = remember(selectedRoute) {
         selectedRoute?.contains("R60") == true
     }
     val officialStops = remember(isR60Selected) {
         if (isR60Selected) R60OfficialStops else emptyList()
-    }
-
-    // Cálculo de rutas recomendadas en base a las paradas seleccionadas
-    val matchingRoutes = remember(selectedOriginStop, selectedDestinationStop) {
-        if (selectedOriginStop != null && selectedDestinationStop != null) {
-            DemoStopsRepository.findMatchingRoutes(selectedOriginStop!!.id, selectedDestinationStop!!.id)
-        } else {
-            emptyList()
-        }
     }
 
     val filtered = remember(search) {
@@ -254,380 +175,234 @@ fun MapSection(
         FullScreenMap(
             selectedRoute = selectedRoute,
             officialStops = officialStops,
-            focusedStop = focusedOfficialStop,
             reloadTick = reloadTick,
             onLoadingChange = { loadingRoute = it },
             onError = { routeError = it },
             modifier = Modifier.fillMaxSize()
         )
 
-        // ---- Contenedor Superior (Barra de búsqueda, menú desplegable y Tarjeta Origen/Destino) ----
-        Column(
+        // ---- Barra de búsqueda y menú desplegable superior unificado ----
+        Card(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(12.dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
-            // ---- 1. Buscador y menú desplegable superior ----
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-            ) {
-                Column {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = WebMutedText,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    BasicTextField(
+                        value = search,
+                        onValueChange = {
+                            search = it
+                            if (it.isNotBlank()) {
+                                dropdownExpanded = true
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 12.dp),
+                        textStyle = TextStyle(
+                            fontFamily = Lexend,
+                            fontSize = 14.sp,
+                            color = WebDark
+                        ),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (search.isEmpty()) {
+                                    Text(
+                                        text = "Busca una ruta...",
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            color = Color(0xFFC3C3C3),
+                                            fontSize = 14.sp
+                                        )
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+                    if (search.isNotBlank()) {
+                        IconButton(
+                            onClick = { search = "" },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Limpiar",
+                                tint = WebMutedText,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    // Icono del camión + Número total de rutas + Semi-flecha desplegable
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                            .clickable { dropdownExpanded = !dropdownExpanded }
+                            .padding(start = 4.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Search,
+                            imageVector = Icons.Default.DirectionsBus,
                             contentDescription = null,
-                            tint = WebMutedText,
-                            modifier = Modifier.size(22.dp)
+                            tint = WebPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        BasicTextField(
-                            value = search,
-                            onValueChange = {
-                                search = it
-                                if (it.isNotBlank()) {
-                                    dropdownExpanded = true
-                                }
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(vertical = 12.dp),
-                            textStyle = TextStyle(
-                                fontFamily = Lexend,
-                                fontSize = 14.sp,
-                                color = WebDark
-                            ),
-                            singleLine = true,
-                            decorationBox = { innerTextField ->
-                                Box(contentAlignment = Alignment.CenterStart) {
-                                    if (search.isEmpty()) {
-                                        Text(
-                                            text = "Busca una ruta...",
-                                            style = TextStyle(
-                                                fontFamily = Lexend,
-                                                color = Color(0xFFC3C3C3),
-                                                fontSize = 14.sp
-                                            )
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
-                        )
-                        if (search.isNotBlank()) {
-                            IconButton(
-                                onClick = { search = "" },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Limpiar",
-                                    tint = WebMutedText,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-
-                        // Icono del camión + Número total de rutas + Semi-flecha desplegable
-                        Row(
-                            modifier = Modifier
-                                .clickable { dropdownExpanded = !dropdownExpanded }
-                                .padding(start = 4.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = WebPrimary.copy(alpha = 0.12f)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.DirectionsBus,
-                                contentDescription = null,
-                                tint = WebPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = WebPrimary.copy(alpha = 0.12f)
-                            ) {
-                                Text(
-                                    text = "${filtered.size}",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                    style = TextStyle(
-                                        fontFamily = Lexend,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = WebPrimary
-                                    )
+                            Text(
+                                text = "${filtered.size}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = TextStyle(
+                                    fontFamily = Lexend,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = WebPrimary
                                 )
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = if (dropdownExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = if (dropdownExpanded) "Cerrar menú" else "Abrir menú",
-                                tint = WebMutedText,
-                                modifier = Modifier.size(24.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = if (dropdownExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (dropdownExpanded) "Cerrar menú" else "Abrir menú",
+                            tint = WebMutedText,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
+                }
 
-                    // Lista desplegable de rutas (de arriba a abajo)
-                    AnimatedVisibility(
-                        visible = dropdownExpanded,
-                        enter = expandVertically(),
-                        exit = shrinkVertically()
-                    ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(WebCardBorder.copy(alpha = 0.5f))
-                            )
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 260.dp)
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
-                                items(filtered) { route ->
-                                    val isSelected = route == selectedRoute
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                selectedRoute = route
-                                                dropdownExpanded = false
-                                            }
-                                            .background(
-                                                if (isSelected) WebPrimary.copy(alpha = 0.08f) else Color.Transparent,
-                                                RoundedCornerShape(10.dp)
-                                            )
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = if (isSelected) WebPrimary else Color(0xFFF3F4F6)
-                                        ) {
-                                            Text(
-                                                text = route.substringBefore(" - "),
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                style = TextStyle(
-                                                    fontFamily = Lexend,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isSelected) Color.White else WebDark
-                                                )
-                                            )
+                // Lista desplegable de rutas (de arriba a abajo)
+                AnimatedVisibility(
+                    visible = dropdownExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    Column {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(WebCardBorder.copy(alpha = 0.5f))
+                        )
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 380.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            items(filtered) { route ->
+                                val isSelected = route == selectedRoute
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedRoute = route
+                                            dropdownExpanded = false // Cierra la lista en cuanto se selecciona la ruta
                                         }
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                        .background(
+                                            if (isSelected) WebPrimary.copy(alpha = 0.08f) else Color.Transparent,
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) WebPrimary else Color(0xFFF3F4F6)
+                                    ) {
                                         Text(
-                                            text = route.substringAfter(" - ", route),
+                                            text = route.substringBefore(" - "),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                             style = TextStyle(
                                                 fontFamily = Lexend,
-                                                fontSize = 13.sp,
-                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                                color = if (isSelected) WebPrimary else WebDark
-                                            ),
-                                            modifier = Modifier.weight(1f)
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color.White else WebDark
+                                            )
                                         )
                                     }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = route.substringAfter(" - ", route),
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = if (isSelected) WebPrimary else WebDark
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            /* ---- 2. Tarjeta Demo de Selección de Origen y Destino ---- */
-            OriginDestinationSelectorCard(
-                originStop = selectedOriginStop,
-                destinationStop = selectedDestinationStop,
-                matchingRoutes = matchingRoutes,
-                onSelectOriginClick = { showOriginPicker = true },
-                onSelectDestinationClick = { showDestinationPicker = true },
-                onRouteSelect = { routeName ->
-                    selectedRoute = routeName
-                },
-                onClear = {
-                    selectedOriginStop = null
-                    selectedDestinationStop = null
-                }
-            )
         }
 
-        /* ---- Panel Flotante de Ruta Seleccionada y Sub-menú de Paradas Oficiales */
+        // ---- Ruta seleccionada (flotante bajo el buscador cuando el desplegable está cerrado) ----
         AnimatedVisibility(
             visible = selectedRoute != null && !dropdownExpanded,
             enter = expandVertically(),
             exit = shrinkVertically(),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = BottomBarSpace + 16.dp, start = 12.dp, end = 12.dp)
+                .statusBarsPadding()
+                .padding(top = 80.dp, start = 12.dp, end = 12.dp)
         ) {
             selectedRoute?.let { route ->
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = route,
-                                    style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WebDark)
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RouteLegendDot(color = WebRouteIda, label = "IDA")
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = route,
+                                style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WebDark)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RouteLegendDot(color = WebRouteIda, label = "IDA")
+                                Spacer(modifier = Modifier.width(10.dp))
+                                RouteLegendDot(color = WebRouteRegreso, label = "REGRESO")
+                                if (loadingRoute) {
                                     Spacer(modifier = Modifier.width(10.dp))
-                                    RouteLegendDot(color = WebRouteRegreso, label = "REGRESO")
-                                    if (loadingRoute) {
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = WebPrimary)
-                                    }
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = WebPrimary)
                                 }
-                            }
-                            IconButton(onClick = {
-                                selectedRoute = null
-                                focusedOfficialStop = null
-                            }) {
-                                Icon(Icons.Default.Close, contentDescription = "Quitar ruta", tint = WebMutedText)
                             }
                         }
-
-                        /* SUB-MENÚ INTERACTIVO DE PARADAS OFICIALES (Específico para Ruta 60) */
-                        if (isR60Selected) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(WebCardBorder.copy(alpha = 0.5f))
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.DirectionsBus,
-                                        contentDescription = null,
-                                        tint = WebPrimary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Paradas Oficiales (Ruta 60)",
-                                        style = TextStyle(
-                                            fontFamily = Lexend,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WebDark
-                                        )
-                                    )
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = WebPrimary.copy(alpha = 0.12f)
-                                ) {
-                                    Text(
-                                        text = "${officialStops.size} Paradas",
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                        style = TextStyle(
-                                            fontFamily = Lexend,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WebPrimary
-                                        )
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            /* Lista Horizontal interactiva con Soft-Zoom al presionar */
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                items(officialStops) { stop ->
-                                    val isFocused = focusedOfficialStop?.id == stop.id
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isFocused) WebPrimary else Color(0xFFF1F5F9),
-                                        modifier = Modifier
-                                            .clickable { focusedOfficialStop = stop }
-                                            .border(
-                                                1.dp,
-                                                if (isFocused) WebPrimary else WebCardBorder,
-                                                RoundedCornerShape(12.dp)
-                                            )
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(22.dp)
-                                                    .background(
-                                                        if (isFocused) Color.White else WebPrimary,
-                                                        CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.DirectionsBus,
-                                                    contentDescription = null,
-                                                    tint = if (isFocused) WebPrimary else Color.White,
-                                                    modifier = Modifier.size(13.dp)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(
-                                                    text = stop.name,
-                                                    style = TextStyle(
-                                                        fontFamily = Lexend,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isFocused) Color.White else WebDark
-                                                    )
-                                                )
-                                                Text(
-                                                    text = stop.description,
-                                                    style = TextStyle(
-                                                        fontFamily = Lexend,
-                                                        fontSize = 9.sp,
-                                                        color = if (isFocused) Color.White.copy(alpha = 0.8f) else WebMutedText
-                                                    )
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        IconButton(onClick = { selectedRoute = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "Quitar ruta", tint = WebMutedText)
                         }
                     }
                 }
@@ -680,318 +455,12 @@ fun MapSection(
             }
         }
     }
-
-    /* ---- Diálogos de Selección de Paradas (Demo) ---- */
-    if (showOriginPicker) {
-        StopSelectionDialog(
-            title = "Selecciona Punto de Partida",
-            stops = DemoStopsRepository.CelayaStops,
-            onStopSelected = { stop ->
-                selectedOriginStop = stop
-                showOriginPicker = false
-            },
-            onDismiss = { showOriginPicker = false }
-        )
-    }
-
-    if (showDestinationPicker) {
-        StopSelectionDialog(
-            title = "Selecciona Destino",
-            stops = DemoStopsRepository.CelayaStops,
-            onStopSelected = { stop ->
-                selectedDestinationStop = stop
-                showDestinationPicker = false
-            },
-            onDismiss = { showDestinationPicker = false }
-        )
-    }
-}
-
-/**
- * Tarjeta para la selección de "Punto de partida" y "Destino" (Demo).
- */
-@Composable
-private fun OriginDestinationSelectorCard(
-    originStop: BusStopDemo?,
-    destinationStop: BusStopDemo?,
-    matchingRoutes: List<String>,
-    onSelectOriginClick: () -> Unit,
-    onSelectDestinationClick: () -> Unit,
-    onRouteSelect: (String) -> Unit,
-    onClear: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF3F8)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Indicador Gráfico Izquierdo (Punto -> Línea -> Cuadrado)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(start = 6.dp, end = 14.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(WebDark, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(Color.White, CircleShape)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .width(2.dp)
-                            .height(28.dp)
-                            .background(WebDark.copy(alpha = 0.8f))
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(WebDark, RoundedCornerShape(3.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(Color.White, RoundedCornerShape(1.dp))
-                        )
-                    }
-                }
-
-                /* Campos de Origen y Destino */
-                Column(modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectOriginClick() }
-                            .padding(vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = originStop?.name ?: "Punto de partida",
-                            style = TextStyle(
-                                fontFamily = Lexend,
-                                fontSize = 15.sp,
-                                fontWeight = if (originStop != null) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (originStop != null) WebDark else Color(0xFF0F263D)
-                            )
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color(0xFFCBD5E1))
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectDestinationClick() }
-                            .padding(vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = destinationStop?.name ?: "Destino",
-                            style = TextStyle(
-                                fontFamily = Lexend,
-                                fontSize = 15.sp,
-                                fontWeight = if (destinationStop != null) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (destinationStop != null) WebDark else Color(0xFF0F263D)
-                            )
-                        )
-                    }
-                }
-
-                if (originStop != null || destinationStop != null) {
-                    IconButton(
-                        onClick = onClear,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Limpiar selección",
-                            tint = WebMutedText,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            if (originStop != null && destinationStop != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color(0xFFCBD5E1))
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (matchingRoutes.isNotEmpty()) {
-                    Text(
-                        text = "Rutas sugeridas que conectan ambas paradas:",
-                        style = TextStyle(
-                            fontFamily = Lexend,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WebPrimary
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        matchingRoutes.forEach { routeName ->
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, WebPrimary.copy(alpha = 0.3f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onRouteSelect(routeName) }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.DirectionsBus,
-                                        contentDescription = null,
-                                        tint = WebPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = routeName,
-                                        style = TextStyle(
-                                            fontFamily = Lexend,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WebDark
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = "Ver en mapa",
-                                        style = TextStyle(
-                                            fontFamily = Lexend,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WebPrimary
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "No se encontraron rutas directas entre estas paradas en la demo.",
-                        style = TextStyle(
-                            fontFamily = Lexend,
-                            fontSize = 11.sp,
-                            color = Color(0xFFD93025)
-                        )
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Diálogo interactivo DEMO para la selección de paradas.
- */
-@Composable
-private fun StopSelectionDialog(
-    title: String,
-    stops: List<BusStopDemo>,
-    onStopSelected: (BusStopDemo) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = title,
-                style = TextStyle(
-                    fontFamily = Lexend,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WebDark
-                )
-            )
-        },
-        text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                items(stops) { stop ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onStopSelected(stop) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Place,
-                            contentDescription = null,
-                            tint = WebPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stop.name,
-                                style = TextStyle(
-                                    fontFamily = Lexend,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = WebDark
-                                )
-                            )
-                            if (stop.locationDescription.isNotBlank()) {
-                                Text(
-                                    text = stop.locationDescription,
-                                    style = TextStyle(
-                                        fontFamily = Lexend,
-                                        fontSize = 11.sp,
-                                        color = WebMutedText
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Cancelar",
-                    style = TextStyle(fontFamily = Lexend, fontSize = 13.sp, color = WebMutedText)
-                )
-            }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(16.dp)
-    )
 }
 
 @Composable
 private fun FullScreenMap(
     selectedRoute: String?,
     officialStops: List<OfficialRouteStop>,
-    focusedStop: OfficialRouteStop?,
     reloadTick: Int,
     onLoadingChange: (Boolean) -> Unit,
     onError: (String?) -> Unit,
@@ -1103,7 +572,7 @@ private fun FullScreenMap(
             }
         }
 
-        /* Capas para dibujar los puntos de las Paradas Oficiales en el mapa (Naranja con borde Blanco) */
+        // Capas para dibujar los puntos de las Paradas Oficiales en el mapa (Marcadores Naranjas con borde Blanco)
         if (officialStops.isNotEmpty()) {
             CircleLayer(sourceState = officialStopsSourceState, layerId = "stops-outer-ring") {
                 circleColor = ColorValue(Color.White)
@@ -1117,23 +586,8 @@ private fun FullScreenMap(
             }
         }
 
-        /* Efecto de Soft-Zoom animado de cámara al presionar una parada en el sub-menú */
-        MapEffect(focusedStop) { mapView ->
-            focusedStop?.let { stop ->
-                mapView.camera.easeTo(
-                    com.mapbox.maps.CameraOptions.Builder()
-                        .center(stop.point)
-                        .zoom(15.8)
-                        .build(),
-                    MapAnimationOptions.mapAnimationOptions { duration(900L) }
-                )
-            }
-        }
-
-        /* Ajuste automático de cámara para encuadrar la ruta y todas las paradas oficiales */
+        // Ajuste automático de cámara para encuadrar la ruta y todas las paradas oficiales
         MapEffect(idaFeatures, regresoFeatures, officialStops) { mapView ->
-            if (focusedStop != null) return@MapEffect
-
             val routePoints = (idaFeatures + regresoFeatures).flatMap { feature ->
                 when (val geometry = feature.geometry()) {
                     is LineString -> geometry.coordinates()
@@ -1150,7 +604,7 @@ private fun FullScreenMap(
                     EdgeInsets(
                         (140 * density).toDouble(),
                         (20 * density).toDouble(),
-                        ((BottomBarSpace.value + 160) * density).toDouble(),
+                        ((BottomBarSpace.value + 40) * density).toDouble(),
                         (20 * density).toDouble()
                     ),
                     null,
