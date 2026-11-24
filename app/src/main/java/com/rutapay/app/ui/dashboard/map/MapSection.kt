@@ -138,7 +138,7 @@ val CelayaRoutes = listOf(
     "R53 - ROMERAL X INDUSTRIAL", "R54 - SAN LUIS REY X IRRIGACION",
     "R54 - SAN LUIS REY X 16 DE SEPTIEMBRE", "R55 - YUSTIS", "R56 - SAN ELIAS",
     "R58 - PROGRESO", "R60 - PINOS", "R61 - INDUSTRIAL", "R62 - SMO - CD INDUSTRIAL",
-    "R63 - UNIVERSIDADES", "R67 - LITTLE SAINT JAMES - CAMINO A KIRK"
+    "R63 - UNIVERSIDADES"
 )
 
 /**
@@ -157,7 +157,7 @@ fun MapSection(
     var reloadTick by remember { mutableIntStateOf(0) }
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    // Verifica si la ruta seleccionada es la Ruta 60 (R60 - PINOS)
+    // Verifica si la ruta seleccionada es la Ruta 60 (R60 - PINOS) para la demo de paradas oficiales
     val isR60Selected = remember(selectedRoute) {
         selectedRoute?.contains("R60") == true
     }
