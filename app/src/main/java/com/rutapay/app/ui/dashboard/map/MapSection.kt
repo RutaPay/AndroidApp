@@ -88,13 +88,17 @@ import com.rutapay.app.ui.theme.WebMutedText
 import com.rutapay.app.ui.theme.WebPrimary
 import com.rutapay.app.ui.theme.WebRouteIda
 import com.rutapay.app.ui.theme.WebRouteRegreso
+import com.rutapay.app.ui.theme.WebTextLight
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.math.hypot
 
 // Los comentarios que representan dos barras "//" Son para funciones oficiales utiles.
 // Los comentarios que representan "/*" son para funciones demo o de representacion unicamente.
@@ -102,8 +106,11 @@ import java.net.URL
 
 
 // ============================================================================
-// ESTRUCTURA DE PARADAS Y MODELOS DE DATOS PARA LA RUTA 60
+// ESTRUCTURA DE PARADAS Y CARGA DINÁMICA DESDE GEOJSON (ALINEADO CON RUTAPAYWEB)
 // ============================================================================
+
+private const val ROUTES_BASE_URL =
+    "https://raw.githubusercontent.com/RutaPay/Routes/refs/heads/main"
 
 /**
  * Modelo de datos que representa una Parada de Autobús (Demo).
@@ -117,34 +124,112 @@ data class BusStopDemo(
 )
 
 /**
- * Modelo de datos para las paradas oficiales registradas en el sistema.
+ * Modelo de datos para las paradas oficiales cargadas desde `${routeId}_P.geojson`.
+ * Alineado con las propiedades usadas en RutaPayWeb (`nombre`, `colonia`, `sentido`).
  */
-data class OfficialRouteStop(
+data class RouteStop(
     val id: String,
     val name: String,
-    val sequenceNumber: Int,
-    val point: Point,
-    val description: String = ""
+    val colonia: String,
+    val sentido: String,
+    val point: Point
 )
 
 /**
- * Coordenadas oficiales exactas proporcionadas para la **Ruta 60 (PINOS)
- * Coordenadas unicamente propuestas para la Demo, eliminables.
+ * Formatea nombres crudos tipo "PO_001_Cruz Roja_I" -> "Cruz Roja", igual que en RutaPayWeb.
  */
-val R60OfficialStops = listOf(
-    OfficialRouteStop("r60_base", "Parada Ruta 60 (Base / Principal)", 1, Point.fromLngLat(-100.7804651, 20.5148246), "Base Principal Ruta 60"),
-    OfficialRouteStop("r60_1", "Parada Ruta 60 - Punto 1", 2, Point.fromLngLat(-100.8127641, 20.5195271), "Zona Centro / Sur"),
-    OfficialRouteStop("r60_2", "Parada Ruta 60 - Punto 2", 3, Point.fromLngLat(-100.8275872, 20.5195474), "Tramo Sur-Poniente"),
-    OfficialRouteStop("r60_3", "Parada Ruta 60 - Punto 3", 4, Point.fromLngLat(-100.8400645, 20.5194977), "Zona Poniente"),
-    OfficialRouteStop("r60_4", "Parada Ruta 60 - Punto 4", 5, Point.fromLngLat(-100.8489929, 20.5203608), "Extremo Poniente"),
-    OfficialRouteStop("r60_5", "Parada Ruta 60 - Punto 5", 6, Point.fromLngLat(-100.8404791, 20.5483256), "Subiendo hacia el Norte"),
-    OfficialRouteStop("r60_6", "Parada Ruta 60 - Punto 6", 7, Point.fromLngLat(-100.8345247, 20.5535950), "Zona Norte / Circuito"),
-    OfficialRouteStop("r60_7", "Parada Ruta 60 - Punto 7", 8, Point.fromLngLat(-100.8260151, 20.5527643), "Eje Norte"),
-    OfficialRouteStop("r60_8", "Parada Ruta 60 - Punto 8", 9, Point.fromLngLat(-100.8121592, 20.5513734), "Eje Nororiente"),
-    OfficialRouteStop("r60_9", "Parada Ruta 60 - Punto 9", 10, Point.fromLngLat(-100.8080580, 20.5509745), "Tramo Oriente"),
-    OfficialRouteStop("r60_10", "Parada Ruta 60 - Punto 10", 11, Point.fromLngLat(-100.7810981, 20.5473756), "Bajando hacia el Oriente"),
-    OfficialRouteStop("r60_11", "Parada Ruta 60 - Punto 11", 12, Point.fromLngLat(-100.7766205, 20.5308457), "Cierre de circuito")
-)
+internal fun formatStopName(raw: String): String =
+    raw.replace(Regex("^[A-Za-z]{2,4}_"), "")
+        .replace(Regex("^\\d+_"), "")
+        .replace(Regex("_[IR]$", RegexOption.IGNORE_CASE), "")
+        .replace("_", " ")
+        .trim()
+        .ifBlank { "Parada" }
+
+/**
+ * Formatea el campo `sentido` igual que en RutaPayWeb ("Ida y regreso", "Ida", "Regreso").
+ */
+internal fun formatSentido(sentido: String?): String {
+    if (sentido.isNullOrBlank()) return ""
+    val values = sentido.split(",").map { it.trim().uppercase() }
+    val hasIda = "IDA" in values
+    val hasRegreso = "REGRESO" in values
+    return when {
+        hasIda && hasRegreso -> "Ida y regreso"
+        hasIda -> "Ida"
+        hasRegreso -> "Regreso"
+        else -> sentido.trim()
+    }
+}
+
+/**
+ * Caché en memoria por ruta para las paradas (`null` = la ruta aún no tiene archivo `_P.geojson` publicado).
+ */
+private object RouteStopsRepository {
+    private val stopsCache = mutableMapOf<String, List<RouteStop>?>()
+
+    suspend fun fetchStops(routeId: String): List<RouteStop>? {
+        if (stopsCache.containsKey(routeId)) {
+            return stopsCache[routeId]
+        }
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val connection = (URL("$ROUTES_BASE_URL/${routeId}_P.geojson").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                }
+                val code = connection.responseCode
+                if (code !in 200..299) {
+                    connection.disconnect()
+                    stopsCache[routeId] = null
+                    return@withContext null
+                }
+
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+
+                val features = FeatureCollection.fromJson(json).features() ?: emptyList()
+                val stops = features.mapIndexedNotNull { index, feature ->
+                    val point = feature.geometry() as? Point ?: return@mapIndexedNotNull null
+                    val rawName = when {
+                        feature.hasProperty("nombre") && !feature.getProperty("nombre").isJsonNull ->
+                            feature.getStringProperty("nombre")
+                        feature.hasProperty("name") && !feature.getProperty("name").isJsonNull ->
+                            feature.getStringProperty("name")
+                        else -> "Parada"
+                    }
+                    val colonia = if (feature.hasProperty("colonia") && !feature.getProperty("colonia").isJsonNull) {
+                        feature.getStringProperty("colonia").trim()
+                    } else {
+                        ""
+                    }
+                    val rawSentido = if (feature.hasProperty("sentido") && !feature.getProperty("sentido").isJsonNull) {
+                        feature.getStringProperty("sentido")
+                    } else {
+                        null
+                    }
+
+                    RouteStop(
+                        id = "${routeId}_stop_$index",
+                        name = formatStopName(rawName),
+                        colonia = colonia,
+                        sentido = formatSentido(rawSentido),
+                        point = point
+                    )
+                }
+
+                stopsCache[routeId] = stops
+                stops
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+}
 
 /**
  * Repositorio DEMO con paradas representativas de Celaya y sus rutas directas.
@@ -213,6 +298,7 @@ fun MapSection(
     secondaryColor: Color,
     tertiaryColor: Color
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var search by remember { mutableStateOf("") }
     var selectedRoute by remember { mutableStateOf<String?>(null) }
     var loadingRoute by remember { mutableStateOf(false) }
@@ -225,14 +311,83 @@ fun MapSection(
     var selectedDestinationStop by remember { mutableStateOf<BusStopDemo?>(null) }
     var showOriginPicker by remember { mutableStateOf(false) }
     var showDestinationPicker by remember { mutableStateOf(false) }
-    var focusedOfficialStop by remember { mutableStateOf<OfficialRouteStop?>(null) }
 
-    // Verifica si la ruta seleccionada es la Ruta 60 (R60 - PINOS)
-    val isR60Selected = remember(selectedRoute) {
-        selectedRoute?.contains("R60") == true
+    // Estados para las paradas oficiales de la ruta (alineado con RutaPayWeb)
+    var stopsVisible by remember { mutableStateOf(false) }
+    var stopsLoading by remember { mutableStateOf(false) }
+    var stopsList by remember { mutableStateOf<List<RouteStop>>(emptyList()) }
+    var focusedStop by remember { mutableStateOf<RouteStop?>(null) }
+    var stopsInfoMessage by remember { mutableStateOf<String?>(null) }
+    var stopsLoadToken by remember { mutableIntStateOf(0) }
+
+    val currentRouteId = remember(selectedRoute) {
+        selectedRoute?.substringBefore(" - ")?.trim().orEmpty()
     }
-    val officialStops = remember(isR60Selected) {
-        if (isR60Selected) R60OfficialStops else emptyList()
+
+    LaunchedEffect(stopsInfoMessage) {
+        if (stopsInfoMessage != null) {
+            delay(3200)
+            stopsInfoMessage = null
+        }
+    }
+
+    fun loadStopsForCurrentRoute(notifyIfMissing: Boolean) {
+        val routeId = currentRouteId
+        if (routeId.isBlank()) {
+            if (notifyIfMissing) {
+                stopsInfoMessage = "Selecciona una ruta para ver sus paradas"
+            }
+            return
+        }
+        val token = ++stopsLoadToken
+        stopsLoading = true
+        coroutineScope.launch {
+            try {
+                val data = RouteStopsRepository.fetchStops(routeId)
+                if (token != stopsLoadToken) return@launch
+                if (data.isNullOrEmpty()) {
+                    stopsList = emptyList()
+                    stopsVisible = false
+                    focusedStop = null
+                    if (notifyIfMissing) {
+                        stopsInfoMessage = "La ruta $routeId todavía no tiene paradas publicadas"
+                    }
+                } else {
+                    stopsList = data
+                }
+            } finally {
+                if (token == stopsLoadToken) {
+                    stopsLoading = false
+                }
+            }
+        }
+    }
+
+    fun toggleStops() {
+        if (stopsLoading) return
+        if (stopsVisible) {
+            stopsVisible = false
+            focusedStop = null
+            return
+        }
+        if (currentRouteId.isBlank()) {
+            stopsInfoMessage = "Selecciona una ruta para ver sus paradas"
+            return
+        }
+        stopsVisible = true
+        loadStopsForCurrentRoute(notifyIfMissing = true)
+    }
+
+    // Al cambiar de ruta, limpia la parada enfocada y recarga paradas si estaban visibles
+    LaunchedEffect(selectedRoute) {
+        focusedStop = null
+        stopsList = emptyList()
+        if (selectedRoute == null) {
+            stopsVisible = false
+            stopsLoading = false
+        } else if (stopsVisible) {
+            loadStopsForCurrentRoute(notifyIfMissing = false)
+        }
     }
 
     // Cálculo de rutas recomendadas en base a las paradas seleccionadas
@@ -253,9 +408,12 @@ fun MapSection(
         // ---- Mapa a pantalla completa ----
         FullScreenMap(
             selectedRoute = selectedRoute,
-            officialStops = officialStops,
-            focusedStop = focusedOfficialStop,
+            stops = if (stopsVisible) stopsList else emptyList(),
+            focusedStop = if (stopsVisible) focusedStop else null,
             reloadTick = reloadTick,
+            onStopClick = { stop ->
+                focusedStop = stop
+            },
             onLoadingChange = { loadingRoute = it },
             onError = { routeError = it },
             modifier = Modifier.fillMaxSize()
@@ -465,7 +623,7 @@ fun MapSection(
             )
         }
 
-        /* ---- Panel Flotante de Ruta Seleccionada y Sub-menú de Paradas Oficiales */
+        /* ---- Panel Flotante de Ruta Seleccionada, Botón de Paradas y Popup de Parada ---- */
         AnimatedVisibility(
             visible = selectedRoute != null && !dropdownExpanded,
             enter = expandVertically(),
@@ -477,152 +635,335 @@ fun MapSection(
                 .padding(bottom = BottomBarSpace + 16.dp, start = 12.dp, end = 12.dp)
         ) {
             selectedRoute?.let { route ->
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = WebPrimary, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = route,
-                                    style = TextStyle(fontFamily = Lexend, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WebDark)
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RouteLegendDot(color = WebRouteIda, label = "IDA")
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    RouteLegendDot(color = WebRouteRegreso, label = "REGRESO")
-                                    if (loadingRoute) {
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = WebPrimary)
-                                    }
-                                }
-                            }
-                            IconButton(onClick = {
-                                selectedRoute = null
-                                focusedOfficialStop = null
-                            }) {
-                                Icon(Icons.Default.Close, contentDescription = "Quitar ruta", tint = WebMutedText)
-                            }
-                        }
-
-                        /* SUB-MENÚ INTERACTIVO DE PARADAS OFICIALES (Específico para Ruta 60) */
-                        if (isR60Selected) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(WebCardBorder.copy(alpha = 0.5f))
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Mensaje informativo de paradas (cuando no hay paradas publicadas)
+                    AnimatedVisibility(visible = stopsInfoMessage != null) {
+                        stopsInfoMessage?.let { infoMsg ->
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = WebDark),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
                                         imageVector = Icons.Default.DirectionsBus,
                                         contentDescription = null,
                                         tint = WebPrimary,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Paradas Oficiales (Ruta 60)",
+                                        text = infoMsg,
                                         style = TextStyle(
                                             fontFamily = Lexend,
                                             fontSize = 12.sp,
+                                            color = Color.White
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = { stopsInfoMessage = null },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Cerrar",
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Popup de detalle de parada seleccionada (alineado con buildStopPopupHtml de RutaPayWeb)
+                    AnimatedVisibility(visible = stopsVisible && focusedStop != null) {
+                        focusedStop?.let { stop ->
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, WebCardBorder),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 3.dp)
+                                            .size(12.dp)
+                                            .background(WebPrimary, CircleShape)
+                                            .border(2.dp, Color.White, CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = stop.name,
+                                            style = TextStyle(
+                                                fontFamily = Lexend,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = WebDark,
+                                                lineHeight = 17.sp
+                                            )
+                                        )
+                                        if (stop.colonia.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = stop.colonia,
+                                                style = TextStyle(
+                                                    fontFamily = Lexend,
+                                                    fontSize = 11.sp,
+                                                    color = WebTextLight
+                                                )
+                                            )
+                                        }
+                                        if (stop.sentido.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "Sentido: ${stop.sentido}",
+                                                style = TextStyle(
+                                                    fontFamily = Lexend,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = WebPrimary
+                                                )
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = { focusedStop = null },
+                                        modifier = Modifier.size(26.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Cerrar parada",
+                                            tint = WebMutedText,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Tarjeta principal de ruta seleccionada
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = WebPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = route,
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = WebDark
                                         )
                                     )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        RouteLegendDot(color = WebRouteIda, label = "IDA")
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        RouteLegendDot(color = WebRouteRegreso, label = "REGRESO")
+                                        if (stopsVisible && stopsList.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "· ${stopsList.size} paradas",
+                                                style = TextStyle(
+                                                    fontFamily = Lexend,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = WebTextLight
+                                                )
+                                            )
+                                        }
+                                        if (loadingRoute) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp,
+                                                color = WebPrimary
+                                            )
+                                        }
+                                    }
                                 }
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = WebPrimary.copy(alpha = 0.12f)
-                                ) {
-                                    Text(
-                                        text = "${officialStops.size} Paradas",
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                        style = TextStyle(
-                                            fontFamily = Lexend,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WebPrimary
-                                        )
-                                    )
+                                IconButton(onClick = {
+                                    selectedRoute = null
+                                    focusedStop = null
+                                    stopsVisible = false
+                                    stopsList = emptyList()
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Quitar ruta", tint = WebMutedText)
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                            /* Lista Horizontal interactiva con Soft-Zoom al presionar */
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            // Botón Toggle de Paradas (alineado con RutaPayWeb: Mostrar/Ocultar paradas + conteo)
+                            Surface(
+                                onClick = { toggleStops() },
+                                enabled = !stopsLoading,
+                                shape = RoundedCornerShape(50),
+                                color = if (stopsVisible) WebPrimary else Color(0xFFF3F4F6),
+                                border = if (stopsVisible) null else androidx.compose.foundation.BorderStroke(1.dp, WebCardBorder),
+                                shadowElevation = if (stopsVisible) 4.dp else 0.dp,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                items(officialStops) { stop ->
-                                    val isFocused = focusedOfficialStop?.id == stop.id
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isFocused) WebPrimary else Color(0xFFF1F5F9),
-                                        modifier = Modifier
-                                            .clickable { focusedOfficialStop = stop }
-                                            .border(
-                                                1.dp,
-                                                if (isFocused) WebPrimary else WebCardBorder,
-                                                RoundedCornerShape(12.dp)
-                                            )
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (stopsLoading) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                            color = if (stopsVisible) Color.White else WebPrimary
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Place,
+                                            contentDescription = null,
+                                            tint = if (stopsVisible) Color.White else WebDark,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = when {
+                                            stopsLoading -> "Cargando paradas…"
+                                            stopsVisible -> "Ocultar paradas"
+                                            else -> "Mostrar paradas"
+                                        },
+                                        style = TextStyle(
+                                            fontFamily = Lexend,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (stopsVisible) Color.White else WebDark
+                                        )
+                                    )
+                                    if (stopsVisible && stopsList.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = Color.White.copy(alpha = 0.25f)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(22.dp)
-                                                    .background(
-                                                        if (isFocused) Color.White else WebPrimary,
-                                                        CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                            Text(
+                                                text = "${stopsList.size}",
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                                style = TextStyle(
+                                                    fontFamily = Lexend,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            /* Lista Horizontal interactiva de paradas reales de la ruta */
+                            if (stopsVisible && stopsList.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(WebCardBorder.copy(alpha = 0.5f))
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(stopsList, key = { it.id }) { stop ->
+                                        val isFocused = focusedStop?.id == stop.id
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isFocused) WebPrimary else Color(0xFFF1F5F9),
+                                            modifier = Modifier
+                                                .clickable { focusedStop = stop }
+                                                .border(
+                                                    1.dp,
+                                                    if (isFocused) WebPrimary else WebCardBorder,
+                                                    RoundedCornerShape(12.dp)
+                                                )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.DirectionsBus,
-                                                    contentDescription = null,
-                                                    tint = if (isFocused) WebPrimary else Color.White,
-                                                    modifier = Modifier.size(13.dp)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(
-                                                    text = stop.name,
-                                                    style = TextStyle(
-                                                        fontFamily = Lexend,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isFocused) Color.White else WebDark
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(22.dp)
+                                                        .background(
+                                                            if (isFocused) Color.White else WebPrimary,
+                                                            CircleShape
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.DirectionsBus,
+                                                        contentDescription = null,
+                                                        tint = if (isFocused) WebPrimary else Color.White,
+                                                        modifier = Modifier.size(13.dp)
                                                     )
-                                                )
-                                                Text(
-                                                    text = stop.description,
-                                                    style = TextStyle(
-                                                        fontFamily = Lexend,
-                                                        fontSize = 9.sp,
-                                                        color = if (isFocused) Color.White.copy(alpha = 0.8f) else WebMutedText
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column {
+                                                    Text(
+                                                        text = stop.name,
+                                                        style = TextStyle(
+                                                            fontFamily = Lexend,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = if (isFocused) Color.White else WebDark
+                                                        )
                                                     )
-                                                )
+                                                    val subtitle = listOfNotNull(
+                                                        stop.colonia.takeIf { it.isNotBlank() },
+                                                        stop.sentido.takeIf { it.isNotBlank() }?.let { "Sentido: $it" }
+                                                    ).joinToString(" · ")
+                                                    if (subtitle.isNotBlank()) {
+                                                        Text(
+                                                            text = subtitle,
+                                                            style = TextStyle(
+                                                                fontFamily = Lexend,
+                                                                fontSize = 9.sp,
+                                                                color = if (isFocused) Color.White.copy(alpha = 0.85f) else WebTextLight
+                                                            )
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -990,9 +1331,10 @@ private fun StopSelectionDialog(
 @Composable
 private fun FullScreenMap(
     selectedRoute: String?,
-    officialStops: List<OfficialRouteStop>,
-    focusedStop: OfficialRouteStop?,
+    stops: List<RouteStop>,
+    focusedStop: RouteStop?,
     reloadTick: Int,
+    onStopClick: (RouteStop) -> Unit,
     onLoadingChange: (Boolean) -> Unit,
     onError: (String?) -> Unit,
     modifier: Modifier = Modifier
@@ -1002,6 +1344,7 @@ private fun FullScreenMap(
 
     var idaFeatures by remember { mutableStateOf<List<Feature>>(emptyList()) }
     var regresoFeatures by remember { mutableStateOf<List<Feature>>(emptyList()) }
+    var mapViewRef by remember { mutableStateOf<com.mapbox.maps.MapView?>(null) }
 
     LaunchedEffect(selectedRoute, reloadTick) {
         if (selectedRoute == null) {
@@ -1016,9 +1359,7 @@ private fun FullScreenMap(
         try {
             val routeId = selectedRoute.substringBefore(" - ")
             val json = withContext(Dispatchers.IO) {
-                URL(
-                    "https://raw.githubusercontent.com/RutaPay/Routes/refs/heads/main/$routeId.geojson"
-                ).readText()
+                URL("$ROUTES_BASE_URL/$routeId.geojson").readText()
             }
             val features = FeatureCollection.fromJson(json).features() ?: emptyList()
             idaFeatures = features.filter {
@@ -1040,7 +1381,8 @@ private fun FullScreenMap(
 
     val idaSourceState = remember { GeoJsonSourceState("route-ida") }
     val regresoSourceState = remember { GeoJsonSourceState("route-regreso") }
-    val officialStopsSourceState = remember { GeoJsonSourceState("official-stops-source") }
+    val stopsSourceState = remember { GeoJsonSourceState("route-stops") }
+    val focusedStopSourceState = remember { GeoJsonSourceState("route-stops-focused") }
 
     LaunchedEffect(idaFeatures) {
         idaSourceState.data = GeoJSONData(idaFeatures)
@@ -1048,14 +1390,18 @@ private fun FullScreenMap(
     LaunchedEffect(regresoFeatures) {
         regresoSourceState.data = GeoJSONData(regresoFeatures)
     }
-    LaunchedEffect(officialStops) {
-        val stopFeatures = officialStops.map { stop ->
+    LaunchedEffect(stops) {
+        val stopFeatures = stops.map { stop ->
             Feature.fromGeometry(stop.point).apply {
+                addStringProperty("id", stop.id)
                 addStringProperty("name", stop.name)
-                addNumberProperty("seq", stop.sequenceNumber)
             }
         }
-        officialStopsSourceState.data = GeoJSONData(stopFeatures)
+        stopsSourceState.data = GeoJSONData(stopFeatures)
+    }
+    LaunchedEffect(focusedStop) {
+        val focusedFeatures = focusedStop?.let { listOf(Feature.fromGeometry(it.point)) } ?: emptyList()
+        focusedStopSourceState.data = GeoJSONData(focusedFeatures)
     }
 
     val mapState = rememberMapState {
@@ -1083,13 +1429,42 @@ private fun FullScreenMap(
     MapboxMap(
         modifier.fillMaxSize(),
         mapState = mapState,
-        mapViewportState = mapViewportState
+        mapViewportState = mapViewportState,
+        onMapClickListener = { clickPoint ->
+            val mv = mapViewRef
+            if (mv != null && stops.isNotEmpty()) {
+                val clickPixel = mv.mapboxMap.pixelForCoordinate(clickPoint)
+                val maxTapPx = 28.0 * density
+                val hit = stops.minByOrNull { stop ->
+                    val stopPixel = mv.mapboxMap.pixelForCoordinate(stop.point)
+                    hypot(clickPixel.x - stopPixel.x, clickPixel.y - stopPixel.y)
+                }
+                if (hit != null) {
+                    val stopPixel = mv.mapboxMap.pixelForCoordinate(hit.point)
+                    val dist = hypot(clickPixel.x - stopPixel.x, clickPixel.y - stopPixel.y)
+                    if (dist <= maxTapPx) {
+                        onStopClick(hit)
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
     ) {
+        MapEffect(Unit) { mapView ->
+            mapViewRef = mapView
+        }
+
         if (idaFeatures.isNotEmpty()) {
             LineLayer(sourceState = idaSourceState, layerId = "route-ida") {
                 lineCap = LineCapValue.ROUND
                 lineJoin = LineJoinValue.ROUND
-                lineColor = ColorValue(Color(0xFF449DD1))
+                lineColor = ColorValue(WebRouteIda)
                 lineWidth = DoubleValue(4.0)
             }
         }
@@ -1097,27 +1472,33 @@ private fun FullScreenMap(
             LineLayer(sourceState = regresoSourceState, layerId = "route-regreso") {
                 lineCap = LineCapValue.ROUND
                 lineJoin = LineJoinValue.ROUND
-                lineColor = ColorValue(Color(0xFF052B4A))
+                lineColor = ColorValue(WebRouteRegreso)
                 lineWidth = DoubleValue(4.0)
                 lineDasharray = DoubleListValue(listOf(2.0, 2.0))
             }
         }
 
-        /* Capas para dibujar los puntos de las Paradas Oficiales en el mapa (Naranja con borde Blanco) */
-        if (officialStops.isNotEmpty()) {
-            CircleLayer(sourceState = officialStopsSourceState, layerId = "stops-outer-ring") {
-                circleColor = ColorValue(Color.White)
-                circleRadius = DoubleValue(9.0)
-                circleStrokeColor = ColorValue(Color(0xFFFF6B00))
+        /* Capas para dibujar los puntos de las Paradas en el mapa (#449dd1 con borde blanco, igual que RutaPayWeb) */
+        if (stops.isNotEmpty()) {
+            CircleLayer(sourceState = stopsSourceState, layerId = "route-stops-layer") {
+                circleColor = ColorValue(WebPrimary)
+                circleRadius = DoubleValue(6.5)
+                circleStrokeColor = ColorValue(Color.White)
                 circleStrokeWidth = DoubleValue(2.0)
-            }
-            CircleLayer(sourceState = officialStopsSourceState, layerId = "stops-inner-dot") {
-                circleColor = ColorValue(Color(0xFFFF6B00))
-                circleRadius = DoubleValue(5.5)
+                circleOpacity = DoubleValue(0.95)
             }
         }
 
-        /* Efecto de Soft-Zoom animado de cámara al presionar una parada en el sub-menú */
+        if (focusedStop != null) {
+            CircleLayer(sourceState = focusedStopSourceState, layerId = "route-stops-focused-layer") {
+                circleColor = ColorValue(WebDark)
+                circleRadius = DoubleValue(9.5)
+                circleStrokeColor = ColorValue(Color.White)
+                circleStrokeWidth = DoubleValue(2.5)
+            }
+        }
+
+        /* Efecto de Soft-Zoom animado de cámara al presionar una parada */
         MapEffect(focusedStop) { mapView ->
             focusedStop?.let { stop ->
                 mapView.camera.easeTo(
@@ -1130,8 +1511,8 @@ private fun FullScreenMap(
             }
         }
 
-        /* Ajuste automático de cámara para encuadrar la ruta y todas las paradas oficiales */
-        MapEffect(idaFeatures, regresoFeatures, officialStops) { mapView ->
+        /* Ajuste automático de cámara para encuadrar la ruta */
+        MapEffect(idaFeatures, regresoFeatures) { mapView ->
             if (focusedStop != null) return@MapEffect
 
             val routePoints = (idaFeatures + regresoFeatures).flatMap { feature ->
@@ -1141,16 +1522,14 @@ private fun FullScreenMap(
                     else -> emptyList()
                 }
             }
-            val stopPoints = officialStops.map { it.point }
-            val allPoints = routePoints + stopPoints
 
-            if (allPoints.size >= 2) {
+            if (routePoints.size >= 2) {
                 val camera = mapView.mapboxMap.cameraForCoordinates(
-                    allPoints,
+                    routePoints,
                     EdgeInsets(
                         (140 * density).toDouble(),
                         (20 * density).toDouble(),
-                        ((BottomBarSpace.value + 160) * density).toDouble(),
+                        ((BottomBarSpace.value + 180) * density).toDouble(),
                         (20 * density).toDouble()
                     ),
                     null,
