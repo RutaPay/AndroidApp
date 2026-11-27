@@ -103,6 +103,16 @@ fun ProfileSection(
     val isCardBlocked = (user?.cardStatus ?: "Active").equals("Blocked", ignoreCase = true)
     val initial = displayName.firstOrNull()?.uppercase() ?: "U"
 
+    // Color de banner según el tipo de usuario (alineado con la web RutaPayWeb)
+    val bannerColor = when (user?.accountType) {
+        "Student" -> Color(0xFF22DD6D)
+        "Health" -> Color(0xFFF87171)
+        "Adult" -> Color(0xFFCA8A04)
+        "Admin" -> Color(0xFF052B4A)
+        "User", "Driver" -> Color(0xFF449DD1)
+        else -> Color(0xFF449DD1)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -129,7 +139,7 @@ fun ProfileSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(128.dp)
-                            .background(Color(0xFFD1D5DB)),
+                            .background(bannerColor),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
